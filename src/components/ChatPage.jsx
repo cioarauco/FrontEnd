@@ -3,35 +3,8 @@ import axios from 'axios';
 import { supabase } from '../App';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaUserCircle, FaTree } from 'react-icons/fa';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeSanitize from 'rehype-sanitize';
 
-// Webhook del agente Tronix en n8n
 const WEBHOOK_URL = 'https://n8n-production-993e.up.railway.app/webhook/01103618-3424-4455-bde6-aa8d295157b2';
-
-/**
- * Render Markdown seguro (no se usa en renderMessage ahora, pero puede servir en el futuro).
- */
-function SafeMarkdown({ content }) {
-  try {
-    return (
-      <ReactMarkdown
-        className="prose prose-sm dark:prose-invert max-w-none"
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeSanitize]}
-      >
-        {content}
-      </ReactMarkdown>
-    );
-  } catch (err) {
-    return (
-      <pre className="text-red-600 bg-red-100 p-2 rounded text-sm">
-        ⚠️ Error al renderizar contenido.
-      </pre>
-    );
-  }
-}
 
 export default function ChatPage() {
   const [input, setInput] = useState('');
@@ -57,11 +30,17 @@ export default function ChatPage() {
     try {
       const res = await axios.post(WEBHOOK_URL, { message: input });
       const raw = res.data.response || res.data;
-      const parsed = Array.isArray(raw) && raw[0]?.output ? raw[0].output : raw;
+
+      let parsed;
+      if (Array.isArray(raw) && raw[0]?.output) {
+        parsed = raw[0].output;
+      } else {
+        parsed = raw;
+      }
+
       const agentReply = { role: 'agent', content: parsed, timestamp: new Date().toISOString() };
       setMessages((prev) => [...prev, agentReply]);
 
-      // Guardar prompt favorito del usuario
       const user = (await supabase.auth.getUser()).data.user;
       if (user) {
         await supabase.from('prompts_favoritos').insert({ user_id: user.id, prompt: input, fecha: new Date() });
@@ -82,9 +61,8 @@ export default function ChatPage() {
     }
   };
 
-  // Guarda la URL del gráfico en el dashboard del usuario
   const saveGraph = async (url) => {
-    const titulo = prompt('Ingresa un título para este gráfico:');
+    const titulo = prompt("Ingresa un título para este gráfico:");
     if (!titulo) return;
 
     const user = (await supabase.auth.getUser()).data.user;
@@ -93,7 +71,14 @@ export default function ChatPage() {
       return;
     }
 
-    const { error } = await supabase.from('dashboards').insert({ user_id: user.id, titulo, url, fecha: new Date() });
+    const { error } = await supabase
+      .from('dashboards')
+      .insert({
+        user_id: user.id,
+        titulo,
+        url,
+        fecha: new Date()
+      });
 
     if (error) {
       alert('Error al guardar gráfico: ' + error.message);
@@ -102,7 +87,6 @@ export default function ChatPage() {
     }
   };
 
-  // Extrae la URL del iframe desde Markdown si existe
   const extractIframe = (text) => {
     const match = text.match(/!\[.*?\]\((https?:\/\/[^\s)]+\?grafico_id=[^\s)]+)\)/);
     if (match) {
@@ -113,16 +97,13 @@ export default function ChatPage() {
     return null;
   };
 
-  /* ------------------ RENDERIZADO DE MENSAJES (lógica original) ------------------ */
   const renderMessage = (msg, index) => {
     const isUser = msg.role === 'user';
     const baseStyle = isUser
       ? 'bg-[#D2C900] text-black rounded-l-3xl rounded-br-3xl'
       : 'bg-[#DFA258] text-black dark:text-white rounded-r-3xl rounded-bl-3xl';
     const icon = isUser ? <FaUserCircle className="text-xl" /> : <FaTree className="text-xl text-[#5E564D]" />;
-    const time = msg.timestamp
-      ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      : '';
+    const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
     if (typeof msg.content === 'string') {
       const iframeMatch = extractIframe(msg.content);
@@ -135,10 +116,7 @@ export default function ChatPage() {
             className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
           >
             <div className={`max-w-md p-4 shadow-lg ${baseStyle}`}>
-              <div className="flex items-center gap-2">
-                {icon}
-                <span className="font-semibold">{isUser ? 'Tú' : 'Tronix'}</span>
-              </div>
+              <div className="flex items-center gap-2">{icon}<span className="font-semibold">{isUser ? 'Tú' : 'Tronix'}</span></div>
               <div className="text-sm mt-2" dangerouslySetInnerHTML={{ __html: iframeMatch.cleanedText.replace(/\n/g, '<br/>') }} />
               <iframe
                 src={iframeMatch.url}
@@ -146,10 +124,7 @@ export default function ChatPage() {
                 style={{ height: '400px' }}
                 allowFullScreen
               />
-              <button
-                onClick={() => saveGraph(iframeMatch.url)}
-                className="mt-3 bg-[#D2C900] hover:bg-[#bcae00] text-black px-4 py-2 rounded-lg shadow"
-              >
+              <button onClick={() => saveGraph(iframeMatch.url)} className="mt-3 bg-[#D2C900] hover:bg-[#bcae00] text-black px-4 py-2 rounded-lg shadow">
                 Guardar gráfico
               </button>
               <div className="text-xs text-right mt-2 text-gray-600 dark:text-gray-300">{time}</div>
@@ -168,25 +143,16 @@ export default function ChatPage() {
         className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
       >
         <div className={`max-w-md p-4 shadow-lg ${baseStyle}`}>
-          <div className="flex items-center gap-2">
-            {icon}
-            <span className="font-semibold">{isUser ? 'Tú' : 'Tronix'}</span>
-          </div>
-
+          <div className="flex items-center gap-2">{icon}<span className="font-semibold">{isUser ? 'Tú' : 'Tronix'}</span></div>
           <div className="text-sm mt-2">
             {isLink ? (
               <a href={msg.content} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">
                 {msg.content}
               </a>
             ) : typeof msg.content === 'object' ? (
-              <pre className="bg-gray-100 p-2 rounded overflow-x-auto text-xs">
-                {JSON.stringify(msg.content, null, 2)}
-              </pre>
+              <pre className="bg-gray-100 p-2 rounded overflow-x-auto text-xs">{JSON.stringify(msg.content, null, 2)}</pre>
             ) : (
-              <div
-                className="prose max-w-full"
-                dangerouslySetInnerHTML={{ __html: msg.content.replace(/\n/g, '<br/>') }}
-              />
+              <div className="prose max-w-full" dangerouslySetInnerHTML={{ __html: msg.content.replace(/\n/g, '<br/>') }} />
             )}
           </div>
           <div className="text-xs text-right mt-2 text-gray-600 dark:text-gray-300">{time}</div>
@@ -195,12 +161,11 @@ export default function ChatPage() {
     );
   };
 
-  /* ------------------------------ UI ------------------------------ */
   const quickPrompts = [
     '¿Cuánto stock hay en predios del Maule?',
     'Hazme un gráfico de producción de eucaliptus',
     'Comparación de despachos de PIRA vs PIOR',
-    'Proyecciones de stock en zona Valdivia',
+    'Proyecciones de stock en zona Valdivia'
   ];
 
   return (
@@ -211,4 +176,37 @@ export default function ChatPage() {
       </div>
 
       <div className="bg-white/90 dark:bg-[#1c2e1f]/90 p-6 rounded-xl shadow-lg max-w-4xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
-        <div className="flex flex-wrap gap
+        <div className="flex flex-wrap gap-2 justify-center mb-4">
+          {quickPrompts.map((p, i) => (
+            <button key={i} onClick={() => setInput(p)} className="bg-[#E5D9AB] text-[#5E564D] px-3 py-1 rounded text-sm hover:bg-[#d6cb9b] font-medium">
+              {p}
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-4 mb-4">
+          <AnimatePresence>{messages.map(renderMessage)}</AnimatePresence>
+          {loading && (
+            <div className="text-center text-sm text-gray-500 dark:text-gray-400">Tronix está pensando...</div>
+          )}
+          <div ref={chatEndRef} />
+        </div>
+
+        <textarea
+          className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#D2C900] dark:focus:ring-[#E5D9AB] focus:outline-none transition-all text-sm dark:bg-[#2e2b26] dark:text-white"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Escribe tu mensaje... (Shift+Enter para salto de línea)"
+          rows={3}
+        />
+        <button
+          onClick={handleSend}
+          className="bg-[#D2C900] hover:bg-[#bcae00] text-black font-semibold px-5 py-2 rounded-lg shadow mt-2 w-full"
+        >
+          📨 Enviar
+        </button>
+      </div>
+    </div>
+  );
+}
