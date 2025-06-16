@@ -141,7 +141,7 @@ export default function ChatPage() {
         <div className={`max-w-2xl p-4 shadow-lg ${baseStyle}`}>
           <div className="flex items-center gap-2">{icon}<span className="font-semibold">{isUser ? 'Tú' : 'Tronix'}</span></div>
 
-          <div className="text-sm mt-2 prose dark:prose-invert max-w-none">
+          <div className="text-sm mt-2 prose dark:prose-invert max-w-none overflow-x-auto">
             {iframeMatch ? (
               <>
                 <SafeMarkdown content={iframeMatch.cleanedText} />
@@ -215,3 +215,4 @@ export default function ChatPage() {
     </div>
   );
 }
+
