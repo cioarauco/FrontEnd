@@ -170,10 +170,23 @@ export default function ChatPage() {
 
   return (
     <div className="min-h-screen bg-[url('/fondo-forestal-pro.jpg')] bg-cover bg-fixed bg-center p-6">
-      <div className="flex items-center justify-center mb-6">
-        <FaTree className="text-3xl text-[#D2C900] mr-2" />
-        <h1 className="text-3xl font-bold text-[#5E564D] dark:text-white font-serif">Tronix Forest Assistant</h1>
+      
+      <div className="flex justify-between items-center bg-white/90 dark:bg-[#1c2e1f]/90 px-6 py-3 rounded-xl shadow mb-6 max-w-4xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
+        
+        <div className="flex items-center gap-2">
+          <FaTree className="text-2xl text-[#D2C900]" />
+          <span className="text-xl font-serif font-bold text-[#5E564D] dark:text-white">
+            Tronix Forest Assistant
+          </span>
+        </div>
+        <div className="flex gap-4 text-sm font-medium">
+          <a href="/chat" className="text-[#5E564D] dark:text-white hover:underline">🌲 Chat Tronix</a>
+          <a href="/dashboards" className="text-[#5E564D] dark:text-white hover:underline">📊 Mis Dashboards</a>
+        </div>
+        
       </div>
+
+
 
       <div className="bg-white/90 dark:bg-[#1c2e1f]/90 p-6 rounded-xl shadow-lg max-w-4xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
         <div className="flex flex-wrap gap-2 justify-center mb-4">
