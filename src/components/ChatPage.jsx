@@ -9,6 +9,26 @@ import rehypeSanitize from 'rehype-sanitize';
 
 const WEBHOOK_URL = 'https://n8n-production-993e.up.railway.app/webhook/01103618-3424-4455-bde6-aa8d295157b2';
 
+function SafeMarkdown({ content }) {
+  try {
+    return (
+      <ReactMarkdown
+        className="prose prose-sm dark:prose-invert max-w-none"
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeSanitize]}
+      >
+        {content}
+      </ReactMarkdown>
+    );
+  } catch (err) {
+    return (
+      <pre className="text-red-600 bg-red-100 p-2 rounded text-sm">
+        ⚠️ Error al renderizar contenido.
+      </pre>
+    );
+  }
+}
+
 export default function ChatPage() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
@@ -124,7 +144,7 @@ export default function ChatPage() {
           <div className="text-sm mt-2 prose dark:prose-invert max-w-none">
             {iframeMatch ? (
               <>
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{iframeMatch.cleanedText}</ReactMarkdown>
+                <SafeMarkdown content={iframeMatch.cleanedText} />
                 <iframe src={iframeMatch.url} className="w-full mt-3 rounded-lg border" style={{ height: '400px' }} allowFullScreen />
                 <button onClick={() => saveGraph(iframeMatch.url)} className="mt-3 bg-[#D2C900] hover:bg-[#bcae00] text-black px-4 py-2 rounded-lg shadow">
                   Guardar gráfico
@@ -137,7 +157,7 @@ export default function ChatPage() {
             ) : typeof msg.content === 'object' ? (
               <pre className="bg-gray-100 p-2 rounded overflow-x-auto text-xs">{JSON.stringify(msg.content, null, 2)}</pre>
             ) : (
-              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{msg.content}</ReactMarkdown>
+              <SafeMarkdown content={msg.content} />
             )}
           </div>
           <div className="text-xs text-right mt-2 text-gray-600 dark:text-gray-300">{time}</div>
