@@ -8,7 +8,7 @@ export default function DashboardPage() {
   const fetchDashboards = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      alert('Debes iniciar sesión para ver tus dashboards.');
+      alert('Debes iniciar sesi\u00f3n para ver tus dashboards.');
       setLoading(false);
       return;
     }
@@ -32,7 +32,7 @@ export default function DashboardPage() {
   }, []);
 
   const eliminarDashboard = async (id) => {
-    const confirmar = window.confirm("¿Estás seguro de que quieres eliminar este gráfico?");
+    const confirmar = window.confirm("\u00bfEst\u00e1s seguro de que quieres eliminar este gr\u00e1fico?");
     if (!confirmar) return;
 
     const { error } = await supabase
@@ -48,7 +48,7 @@ export default function DashboardPage() {
   };
 
   const editarTitulo = async (id, tituloActual) => {
-    const nuevoTitulo = window.prompt("Escribe el nuevo título para este gráfico:", tituloActual);
+    const nuevoTitulo = window.prompt("Escribe el nuevo t\u00edtulo para este gr\u00e1fico:", tituloActual);
     if (!nuevoTitulo || nuevoTitulo.trim() === tituloActual.trim()) return;
 
     const { error } = await supabase
@@ -57,7 +57,7 @@ export default function DashboardPage() {
       .eq('id', id);
 
     if (error) {
-      alert('Error al actualizar título: ' + error.message);
+      alert('Error al actualizar t\u00edtulo: ' + error.message);
     } else {
       setDashboards(dashboards.map(item =>
         item.id === id ? { ...item, titulo: nuevoTitulo } : item
@@ -67,11 +67,25 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[url('/fondo-forestal-pro.jpg')] bg-cover bg-fixed bg-center p-6">
+
+      {/* Header visual igual al del chat */}
+      <div className="flex justify-between items-center bg-white/90 dark:bg-[#1c2e1f]/90 px-6 py-3 rounded-xl shadow mb-6 max-w-7xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">\ud83c\udf32</span>
+          <span className="text-xl font-serif font-bold text-[#5E564D] dark:text-white">
+            Tronix Forest Assistant
+          </span>
+        </div>
+        <div className="flex gap-4 text-sm font-medium">
+          <a href="/chat" className="text-[#5E564D] dark:text-white hover:underline">\ud83c\udf32 Chat Tronix</a>
+          <a href="/dashboards" className="text-[#5E564D] dark:text-white hover:underline">\ud83d\udcca Mis Dashboards</a>
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto bg-white/90 dark:bg-[#1c2e1f]/90 backdrop-blur-sm p-6 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700">
-        
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-[#5E564D] dark:text-white font-serif flex items-center gap-2">
-            📊 Mis Dashboards Guardados
+            \ud83d\udcca Mis Dashboards Guardados
           </h2>
         </div>
 
@@ -79,7 +93,7 @@ export default function DashboardPage() {
           <p className="text-center text-gray-600 dark:text-gray-300">Cargando dashboards...</p>
         ) : dashboards.length === 0 ? (
           <p className="text-center text-gray-500 dark:text-gray-400 italic">
-            Aún no tienes gráficos guardados. Usa el agente Tronix para generarlos y guárdalos aquí.
+            A\u00fan no tienes gr\u00e1ficos guardados. Usa el agente Tronix para generarlos y gu\u00e1rdalos aqu\u00ed.
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -94,16 +108,16 @@ export default function DashboardPage() {
                     <button
                       onClick={() => editarTitulo(item.id, item.titulo)}
                       className="bg-yellow-400 hover:bg-yellow-500 text-white text-xs px-2 py-1 rounded"
-                      title="Editar título"
+                      title="Editar t\u00edtulo"
                     >
-                      ✏️
+                      \u270f\ufe0f
                     </button>
                     <button
                       onClick={() => eliminarDashboard(item.id)}
                       className="bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1 rounded"
-                      title="Eliminar gráfico"
+                      title="Eliminar gr\u00e1fico"
                     >
-                      🗑️
+                      \ud83d\uddd1\ufe0f
                     </button>
                   </div>
                 </div>
@@ -121,4 +135,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
