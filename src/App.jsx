@@ -12,11 +12,6 @@ export const supabase = createClient(
 function App() {
   return (
     <BrowserRouter>
-      <nav className="flex gap-4 p-4 bg-gray-100 justify-center">
-        <a href="/chat" className="text-blue-600 font-semibold hover:underline">🤖 Chat Tronix</a>
-        <a href="/dashboards" className="text-blue-600 font-semibold hover:underline">📊 Mis Dashboards</a>
-      </nav>
-
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/chat" element={<ChatPage />} />
