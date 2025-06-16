@@ -3,6 +3,9 @@ import axios from 'axios';
 import { supabase } from '../App';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaUserCircle, FaTree } from 'react-icons/fa';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeSanitize from 'rehype-sanitize';
 
 const WEBHOOK_URL = 'https://n8n-production-993e.up.railway.app/webhook/01103618-3424-4455-bde6-aa8d295157b2';
 
@@ -105,36 +108,9 @@ export default function ChatPage() {
     const icon = isUser ? <FaUserCircle className="text-xl" /> : <FaTree className="text-xl text-[#5E564D]" />;
     const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
-    if (typeof msg.content === 'string') {
-      const iframeMatch = extractIframe(msg.content);
-      if (iframeMatch) {
-        return (
-          <motion.div
-            key={index}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
-          >
-            <div className={`max-w-md p-4 shadow-lg ${baseStyle}`}>
-              <div className="flex items-center gap-2">{icon}<span className="font-semibold">{isUser ? 'Tú' : 'Tronix'}</span></div>
-              <div className="text-sm mt-2" dangerouslySetInnerHTML={{ __html: iframeMatch.cleanedText.replace(/\n/g, '<br/>') }} />
-              <iframe
-                src={iframeMatch.url}
-                className="w-full mt-3 rounded-lg border"
-                style={{ height: '400px' }}
-                allowFullScreen
-              />
-              <button onClick={() => saveGraph(iframeMatch.url)} className="mt-3 bg-[#D2C900] hover:bg-[#bcae00] text-black px-4 py-2 rounded-lg shadow">
-                Guardar gráfico
-              </button>
-              <div className="text-xs text-right mt-2 text-gray-600 dark:text-gray-300">{time}</div>
-            </div>
-          </motion.div>
-        );
-      }
-    }
-
+    const iframeMatch = typeof msg.content === 'string' && extractIframe(msg.content);
     const isLink = typeof msg.content === 'string' && msg.content.startsWith('http');
+
     return (
       <motion.div
         key={index}
@@ -142,17 +118,26 @@ export default function ChatPage() {
         animate={{ opacity: 1, y: 0 }}
         className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
       >
-        <div className={`max-w-md p-4 shadow-lg ${baseStyle}`}>
+        <div className={`max-w-2xl p-4 shadow-lg ${baseStyle}`}>
           <div className="flex items-center gap-2">{icon}<span className="font-semibold">{isUser ? 'Tú' : 'Tronix'}</span></div>
-          <div className="text-sm mt-2">
-            {isLink ? (
+
+          <div className="text-sm mt-2 prose dark:prose-invert max-w-none">
+            {iframeMatch ? (
+              <>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{iframeMatch.cleanedText}</ReactMarkdown>
+                <iframe src={iframeMatch.url} className="w-full mt-3 rounded-lg border" style={{ height: '400px' }} allowFullScreen />
+                <button onClick={() => saveGraph(iframeMatch.url)} className="mt-3 bg-[#D2C900] hover:bg-[#bcae00] text-black px-4 py-2 rounded-lg shadow">
+                  Guardar gráfico
+                </button>
+              </>
+            ) : isLink ? (
               <a href={msg.content} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">
                 {msg.content}
               </a>
             ) : typeof msg.content === 'object' ? (
               <pre className="bg-gray-100 p-2 rounded overflow-x-auto text-xs">{JSON.stringify(msg.content, null, 2)}</pre>
             ) : (
-              <div className="prose max-w-full" dangerouslySetInnerHTML={{ __html: msg.content.replace(/\n/g, '<br/>') }} />
+              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{msg.content}</ReactMarkdown>
             )}
           </div>
           <div className="text-xs text-right mt-2 text-gray-600 dark:text-gray-300">{time}</div>
