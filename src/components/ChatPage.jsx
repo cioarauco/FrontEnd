@@ -10,34 +10,32 @@ export default function ChatPage() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [favoritePrompts, setFavoritePrompts] = useState([]);
+  const [frequentQs, setFrequentQs] = useState([]);
   const chatEndRef = useRef(null);
-
-  const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
   useEffect(() => {
-    const fetchFavorites = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data, error } = await supabase
-          .from('prompts_favoritos')
-          .select('prompt')
-          .eq('user_id', user.id)
-          .order('fecha', { ascending: false })
-          .limit(8);
-        if (!error && data) {
-          setFavoritePrompts([...new Set(data.map(d => d.prompt))]);
-        }
-      }
-    };
-    fetchFavorites();
+    fetchFrequentQuestions();
   }, []);
+
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const fetchFrequentQuestions = async () => {
+    const user = (await supabase.auth.getUser()).data.user;
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('preguntas_frecuentes')
+      .select('id, pregunta')
+      .eq('user_id', user.id)
+      .order('fecha', { ascending: false });
+
+    if (!error) setFrequentQs(data);
+  };
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -48,18 +46,11 @@ export default function ChatPage() {
     try {
       const res = await axios.post(WEBHOOK_URL, { message: input });
       const raw = res.data.response || res.data;
-      let parsed = Array.isArray(raw) && raw[0]?.output ? raw[0].output : raw;
-
+      const parsed = Array.isArray(raw) && raw[0]?.output ? raw[0].output : raw;
       const agentReply = { role: 'agent', content: parsed, timestamp: new Date().toISOString() };
       setMessages((prev) => [...prev, agentReply]);
-
-      const user = (await supabase.auth.getUser()).data.user;
-      if (user) {
-        await supabase.from('prompts_favoritos').insert({ user_id: user.id, prompt: input, fecha: new Date() });
-      }
-    } catch (error) {
-      const errorReply = { role: 'agent', content: '⚠️ Error al contactar con el agente.', timestamp: new Date().toISOString() };
-      setMessages((prev) => [...prev, errorReply]);
+    } catch {
+      setMessages((prev) => [...prev, { role: 'agent', content: '⚠️ Error al contactar con el agente.', timestamp: new Date().toISOString() }]);
     }
 
     setInput('');
@@ -78,19 +69,24 @@ export default function ChatPage() {
     if (!titulo) return;
 
     const user = (await supabase.auth.getUser()).data.user;
-    if (!user) {
-      alert('Debe iniciar sesión primero.');
-      return;
-    }
+    if (!user) return alert('Debe iniciar sesión primero.');
 
     const { error } = await supabase
       .from('dashboards')
       .insert({ user_id: user.id, titulo, url, fecha: new Date() });
 
-    if (error) {
-      alert('Error al guardar gráfico: ' + error.message);
-    } else {
-      alert('Gráfico guardado correctamente.');
+    if (error) alert('Error al guardar gráfico: ' + error.message);
+    else alert('Gráfico guardado correctamente.');
+  };
+
+  const handleGuardarPregunta = async (pregunta) => {
+    const user = (await supabase.auth.getUser()).data.user;
+    if (!user) return alert('Debes iniciar sesión.');
+    const { error } = await supabase.from('preguntas_frecuentes').insert({ user_id: user.id, pregunta });
+    if (error) alert('❌ Error al guardar: ' + error.message);
+    else {
+      alert('✅ Pregunta guardada.');
+      fetchFrequentQuestions();
     }
   };
 
@@ -111,44 +107,48 @@ export default function ChatPage() {
       : 'bg-[#DFA258] text-black dark:text-white rounded-r-3xl rounded-bl-3xl';
     const icon = isUser ? <FaUserCircle className="text-xl" /> : <FaTree className="text-xl text-[#5E564D]" />;
     const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    const iframeMatch = typeof msg.content === 'string' ? extractIframe(msg.content) : null;
 
-    if (typeof msg.content === 'string') {
-      const iframeMatch = extractIframe(msg.content);
-      if (iframeMatch) {
-        return (
-          <motion.div key={index} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-            <div className={`w-full max-w-3xl p-4 shadow-lg ${baseStyle}`}>
-              <div className="flex items-center gap-2">{icon}<span className="font-semibold">{isUser ? 'Tú' : 'Tronix'}</span></div>
+    return (
+      <motion.div key={index} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+        <div className={`w-full max-w-2xl p-4 shadow-lg ${baseStyle}`}>
+          <div className="flex items-center gap-2 mb-1">{icon}<span className="font-semibold">{isUser ? 'Tú' : 'Tronix'}</span></div>
+          {iframeMatch ? (
+            <>
               <div className="text-sm mt-2" dangerouslySetInnerHTML={{ __html: iframeMatch.cleanedText.replace(/\n/g, '<br/>') }} />
               <iframe src={iframeMatch.url} className="w-full mt-3 rounded-lg border" style={{ height: '400px' }} allowFullScreen />
               <button onClick={() => saveGraph(iframeMatch.url)} className="mt-3 bg-[#D2C900] hover:bg-[#bcae00] text-black px-4 py-2 rounded-lg shadow">
                 Guardar gráfico
               </button>
-              <div className="text-xs text-right mt-2 text-gray-600 dark:text-gray-300">{time}</div>
+            </>
+          ) : (
+            <div className="text-sm mt-2">
+              {typeof msg.content === 'string' ? (
+                <div className="prose max-w-full" dangerouslySetInnerHTML={{ __html: msg.content.replace(/\n/g, '<br/>') }} />
+              ) : typeof msg.content === 'object' ? (
+                <pre className="bg-gray-100 p-2 rounded overflow-x-auto text-xs">{JSON.stringify(msg.content, null, 2)}</pre>
+              ) : msg.content}
             </div>
-          </motion.div>
-        );
-      }
-    }
+          )}
 
-    const isLink = typeof msg.content === 'string' && msg.content.startsWith('http');
-    return (
-      <motion.div key={index} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-        <div className={`max-w-md p-4 shadow-lg ${baseStyle}`}>
-          <div className="flex items-center gap-2">{icon}<span className="font-semibold">{isUser ? 'Tú' : 'Tronix'}</span></div>
-          <div className="text-sm mt-2">
-            {isLink ? (
-              <a href={msg.content} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">{msg.content}</a>
-            ) : typeof msg.content === 'object' ? (
-              <pre className="bg-gray-100 p-2 rounded overflow-x-auto text-xs">{JSON.stringify(msg.content, null, 2)}</pre>
-            ) : (
-              <div className="prose max-w-full" dangerouslySetInnerHTML={{ __html: msg.content.replace(/\n/g, '<br/>') }} />
-            )}
-          </div>
+          {isUser && (
+            <button
+              onClick={() => handleGuardarPregunta(msg.content)}
+              className="mt-3 bg-[#D2C900] hover:bg-[#bcae00] text-black px-3 py-1 rounded text-xs shadow"
+            >
+              💾 Guardar como favorita
+            </button>
+          )}
+
           <div className="text-xs text-right mt-2 text-gray-600 dark:text-gray-300">{time}</div>
         </div>
       </motion.div>
     );
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = '/login';
   };
 
   return (
@@ -161,22 +161,20 @@ export default function ChatPage() {
         <div className="flex gap-4 text-sm font-medium">
           <a href="/chat" className="text-[#5E564D] dark:text-white hover:underline">🌲 Chat Tronix</a>
           <a href="/dashboards" className="text-[#5E564D] dark:text-white hover:underline">📊 Mis Dashboards</a>
-          <a href="/" onClick={() => supabase.auth.signOut()} className="text-red-600 hover:underline">🚪 Cerrar sesión</a>
+          <button onClick={handleLogout} className="text-red-600 hover:underline">🚪 Cerrar sesión</button>
         </div>
       </div>
 
       <div className="bg-white/90 dark:bg-[#1c2e1f]/90 p-6 rounded-xl shadow-lg max-w-4xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
-        <div className="flex flex-wrap gap-2 justify-center mb-4">
-          {favoritePrompts.length === 0 ? (
-            <span className="text-sm text-gray-500 dark:text-gray-300">No hay prompts favoritos aún</span>
-          ) : (
-            favoritePrompts.map((p, i) => (
-              <button key={i} onClick={() => setInput(p)} className="bg-[#E5D9AB] text-[#5E564D] px-3 py-1 rounded text-sm hover:bg-[#d6cb9b] font-medium">
-                {p}
+        {frequentQs.length > 0 && (
+          <div className="flex flex-wrap gap-2 justify-center mb-4">
+            {frequentQs.map((p) => (
+              <button key={p.id} onClick={() => setInput(p.pregunta)} className="bg-[#E5D9AB] text-[#5E564D] px-3 py-1 rounded text-sm hover:bg-[#d6cb9b] font-medium">
+                {p.pregunta}
               </button>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
 
         <div className="space-y-4 mb-4">
           <AnimatePresence>{messages.map(renderMessage)}</AnimatePresence>
@@ -192,27 +190,12 @@ export default function ChatPage() {
           placeholder="Escribe tu mensaje... (Shift+Enter para salto de línea)"
           rows={3}
         />
-        {input.trim() && (
-          <button
-            onClick={async () => {
-              const user = (await supabase.auth.getUser()).data.user;
-              if (user) {
-                const { error } = await supabase
-                  .from('prompts_favoritos')
-                  .insert({ user_id: user.id, prompt: input.trim(), fecha: new Date() });
-                if (!error) {
-                  setFavoritePrompts(prev => [input.trim(), ...prev.filter(p => p !== input.trim())].slice(0, 8));
-                  alert('Guardado como favorito');
-                }
-              }
-            }}
-            className="mt-2 text-sm text-blue-700 underline"
-          >⭐ Guardar como favorito</button>
-        )}
         <button
           onClick={handleSend}
           className="bg-[#D2C900] hover:bg-[#bcae00] text-black font-semibold px-5 py-2 rounded-lg shadow mt-2 w-full"
-        >📨 Enviar</button>
+        >
+          📨 Enviar
+        </button>
       </div>
     </div>
   );
