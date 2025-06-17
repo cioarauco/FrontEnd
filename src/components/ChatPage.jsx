@@ -21,20 +21,21 @@ export default function ChatPage() {
     scrollToBottom();
   }, [messages]);
 
-  useEffect(() => {
-    const fetchFrequentQuestions = async () => {
-      const user = (await supabase.auth.getUser()).data.user;
-      if (!user) return;
-      const { data, error } = await supabase
-        .from('preguntas_frecuentes')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('fecha_creacion', { ascending: false });
+  const fetchFrequentQuestions = async () => {
+    const user = (await supabase.auth.getUser()).data.user;
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('preguntas_frecuentes')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('fecha_creacion', { ascending: false });
 
-      if (!error && data) {
-        setFrequentQuestions(data);
-      }
-    };
+    if (!error && data) {
+      setFrequentQuestions(data);
+    }
+  };
+
+  useEffect(() => {
     fetchFrequentQuestions();
   }, []);
 
@@ -109,6 +110,7 @@ export default function ChatPage() {
         alert('❌ Error al guardar: ' + error.message);
       } else {
         alert('✅ Pregunta guardada como favorita');
+        fetchFrequentQuestions();
       }
     };
 
@@ -129,9 +131,6 @@ export default function ChatPage() {
             <>
               <div className="text-sm mt-2" dangerouslySetInnerHTML={{ __html: iframeMatch.cleanedText.replace(/\n/g, '<br/>') }} />
               <iframe src={iframeMatch.url} className="w-full mt-3 rounded-lg border" style={{ height: '400px' }} allowFullScreen />
-              <button onClick={() => saveGraph(iframeMatch.url)} className="mt-3 bg-[#D2C900] hover:bg-[#bcae00] text-black px-4 py-2 rounded-lg shadow">
-                Guardar gráfico
-              </button>
             </>
           ) : (
             <div className="text-sm mt-2">
@@ -216,4 +215,3 @@ export default function ChatPage() {
     </div>
   );
 }
-
