@@ -29,7 +29,7 @@ export default function ChatPage() {
         .from('preguntas_frecuentes')
         .select('*')
         .eq('user_id', user.id)
-        .order('fecha', { ascending: false });
+        .order('fecha_creacion', { ascending: false });
 
       if (!error && data) {
         setFrequentQuestions(data);
@@ -103,7 +103,7 @@ export default function ChatPage() {
       const { error } = await supabase.from('preguntas_frecuentes').insert({
         user_id: user.id,
         pregunta: msg.content,
-        fecha: new Date(),
+        fecha_creacion: new Date(),
       });
       if (error) {
         alert('❌ Error al guardar: ' + error.message);
@@ -216,3 +216,4 @@ export default function ChatPage() {
     </div>
   );
 }
+
