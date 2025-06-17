@@ -10,6 +10,7 @@ export default function ChatPage() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [favoritePrompts, setFavoritePrompts] = useState([]);
   const chatEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -20,9 +21,26 @@ export default function ChatPage() {
     scrollToBottom();
   }, [messages]);
 
+  useEffect(() => {
+    const fetchFavorites = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data, error } = await supabase
+          .from('prompts_favoritos')
+          .select('prompt')
+          .eq('user_id', user.id)
+          .order('fecha', { ascending: false })
+          .limit(8);
+        if (!error && data) {
+          setFavoritePrompts([...new Set(data.map(d => d.prompt))]);
+        }
+      }
+    };
+    fetchFavorites();
+  }, []);
+
   const handleSend = async () => {
     if (!input.trim()) return;
-
     const newUserMessage = { role: 'user', content: input, timestamp: new Date().toISOString() };
     setMessages((prev) => [...prev, newUserMessage]);
     setLoading(true);
@@ -30,13 +48,7 @@ export default function ChatPage() {
     try {
       const res = await axios.post(WEBHOOK_URL, { message: input });
       const raw = res.data.response || res.data;
-
-      let parsed;
-      if (Array.isArray(raw) && raw[0]?.output) {
-        parsed = raw[0].output;
-      } else {
-        parsed = raw;
-      }
+      let parsed = Array.isArray(raw) && raw[0]?.output ? raw[0].output : raw;
 
       const agentReply = { role: 'agent', content: parsed, timestamp: new Date().toISOString() };
       setMessages((prev) => [...prev, agentReply]);
@@ -73,12 +85,7 @@ export default function ChatPage() {
 
     const { error } = await supabase
       .from('dashboards')
-      .insert({
-        user_id: user.id,
-        titulo,
-        url,
-        fecha: new Date()
-      });
+      .insert({ user_id: user.id, titulo, url, fecha: new Date() });
 
     if (error) {
       alert('Error al guardar gráfico: ' + error.message);
@@ -109,21 +116,11 @@ export default function ChatPage() {
       const iframeMatch = extractIframe(msg.content);
       if (iframeMatch) {
         return (
-          <motion.div
-            key={index}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
-          >
-            <div className={`max-w-md p-4 shadow-lg ${baseStyle}`}>
+          <motion.div key={index} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+            <div className={`w-full max-w-3xl p-4 shadow-lg ${baseStyle}`}>
               <div className="flex items-center gap-2">{icon}<span className="font-semibold">{isUser ? 'Tú' : 'Tronix'}</span></div>
               <div className="text-sm mt-2" dangerouslySetInnerHTML={{ __html: iframeMatch.cleanedText.replace(/\n/g, '<br/>') }} />
-              <iframe
-                src={iframeMatch.url}
-                className="w-full mt-3 rounded-lg border"
-                style={{ height: '400px' }}
-                allowFullScreen
-              />
+              <iframe src={iframeMatch.url} className="w-full mt-3 rounded-lg border" style={{ height: '400px' }} allowFullScreen />
               <button onClick={() => saveGraph(iframeMatch.url)} className="mt-3 bg-[#D2C900] hover:bg-[#bcae00] text-black px-4 py-2 rounded-lg shadow">
                 Guardar gráfico
               </button>
@@ -136,19 +133,12 @@ export default function ChatPage() {
 
     const isLink = typeof msg.content === 'string' && msg.content.startsWith('http');
     return (
-      <motion.div
-        key={index}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
-      >
+      <motion.div key={index} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
         <div className={`max-w-md p-4 shadow-lg ${baseStyle}`}>
           <div className="flex items-center gap-2">{icon}<span className="font-semibold">{isUser ? 'Tú' : 'Tronix'}</span></div>
           <div className="text-sm mt-2">
             {isLink ? (
-              <a href={msg.content} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">
-                {msg.content}
-              </a>
+              <a href={msg.content} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">{msg.content}</a>
             ) : typeof msg.content === 'object' ? (
               <pre className="bg-gray-100 p-2 rounded overflow-x-auto text-xs">{JSON.stringify(msg.content, null, 2)}</pre>
             ) : (
@@ -161,47 +151,36 @@ export default function ChatPage() {
     );
   };
 
-  const quickPrompts = [
-    '¿Cuánto stock hay en predios del Maule?',
-    'Hazme un gráfico de producción de eucaliptus',
-    'Comparación de despachos de PIRA vs PIOR',
-    'Proyecciones de stock en zona Valdivia'
-  ];
-
   return (
     <div className="min-h-screen bg-[url('/fondo-forestal-pro.jpg')] bg-cover bg-fixed bg-center p-6">
-      
       <div className="flex justify-between items-center bg-white/90 dark:bg-[#1c2e1f]/90 px-6 py-3 rounded-xl shadow mb-6 max-w-4xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
-        
         <div className="flex items-center gap-2">
           <FaTree className="text-2xl text-[#D2C900]" />
-          <span className="text-xl font-serif font-bold text-[#5E564D] dark:text-white">
-            Tronix Forest Assistant
-          </span>
+          <span className="text-xl font-serif font-bold text-[#5E564D] dark:text-white">Tronix Forest Assistant</span>
         </div>
         <div className="flex gap-4 text-sm font-medium">
           <a href="/chat" className="text-[#5E564D] dark:text-white hover:underline">🌲 Chat Tronix</a>
           <a href="/dashboards" className="text-[#5E564D] dark:text-white hover:underline">📊 Mis Dashboards</a>
+          <a href="/" onClick={() => supabase.auth.signOut()} className="text-red-600 hover:underline">🚪 Cerrar sesión</a>
         </div>
-        
       </div>
-
-
 
       <div className="bg-white/90 dark:bg-[#1c2e1f]/90 p-6 rounded-xl shadow-lg max-w-4xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
         <div className="flex flex-wrap gap-2 justify-center mb-4">
-          {quickPrompts.map((p, i) => (
-            <button key={i} onClick={() => setInput(p)} className="bg-[#E5D9AB] text-[#5E564D] px-3 py-1 rounded text-sm hover:bg-[#d6cb9b] font-medium">
-              {p}
-            </button>
-          ))}
+          {favoritePrompts.length === 0 ? (
+            <span className="text-sm text-gray-500 dark:text-gray-300">No hay prompts favoritos aún</span>
+          ) : (
+            favoritePrompts.map((p, i) => (
+              <button key={i} onClick={() => setInput(p)} className="bg-[#E5D9AB] text-[#5E564D] px-3 py-1 rounded text-sm hover:bg-[#d6cb9b] font-medium">
+                {p}
+              </button>
+            ))
+          )}
         </div>
 
         <div className="space-y-4 mb-4">
           <AnimatePresence>{messages.map(renderMessage)}</AnimatePresence>
-          {loading && (
-            <div className="text-center text-sm text-gray-500 dark:text-gray-400">Tronix está pensando...</div>
-          )}
+          {loading && <div className="text-center text-sm text-gray-500 dark:text-gray-400">Tronix está pensando...</div>}
           <div ref={chatEndRef} />
         </div>
 
@@ -213,12 +192,27 @@ export default function ChatPage() {
           placeholder="Escribe tu mensaje... (Shift+Enter para salto de línea)"
           rows={3}
         />
+        {input.trim() && (
+          <button
+            onClick={async () => {
+              const user = (await supabase.auth.getUser()).data.user;
+              if (user) {
+                const { error } = await supabase
+                  .from('prompts_favoritos')
+                  .insert({ user_id: user.id, prompt: input.trim(), fecha: new Date() });
+                if (!error) {
+                  setFavoritePrompts(prev => [input.trim(), ...prev.filter(p => p !== input.trim())].slice(0, 8));
+                  alert('Guardado como favorito');
+                }
+              }
+            }}
+            className="mt-2 text-sm text-blue-700 underline"
+          >⭐ Guardar como favorito</button>
+        )}
         <button
           onClick={handleSend}
           className="bg-[#D2C900] hover:bg-[#bcae00] text-black font-semibold px-5 py-2 rounded-lg shadow mt-2 w-full"
-        >
-          📨 Enviar
-        </button>
+        >📨 Enviar</button>
       </div>
     </div>
   );
