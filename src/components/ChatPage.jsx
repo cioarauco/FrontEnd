@@ -176,18 +176,24 @@ export default function ChatPage() {
       </div>
 
       <div className="bg-white/90 dark:bg-[#1c2e1f]/90 p-6 rounded-xl shadow-lg max-w-4xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
-        {frequentQuestions.length > 0 && (
-          <div className="mb-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-white mb-2">📌 Tus preguntas frecuentes:</h3>
+        <div className="mb-4">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-white mb-2">📌 Tus preguntas frecuentes:</h3>
+          {frequentQuestions.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {frequentQuestions.map((q, i) => (
-                <button key={i} onClick={() => setInput(q.pregunta)} className="bg-[#FDF3BF] text-[#5E564D] px-3 py-1 rounded text-xs hover:bg-[#eee0aa] font-medium">
+                <button
+                  key={i}
+                  onClick={() => setInput(q.pregunta)}
+                  className="bg-[#FDF3BF] text-[#5E564D] px-3 py-1 rounded text-xs hover:bg-[#eee0aa] font-medium"
+                >
                   {q.pregunta}
                 </button>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <p className="text-xs text-gray-500 dark:text-gray-400">No tienes preguntas guardadas todavía.</p>
+          )}
+        </div>
 
         <div className="space-y-4 mb-4">
           <AnimatePresence>{messages.map(renderMessage)}</AnimatePresence>
