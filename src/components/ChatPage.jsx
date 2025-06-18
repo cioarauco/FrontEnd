@@ -155,7 +155,7 @@ export default function ChatPage() {
                     const { error } = await supabase.from('graficos').insert({
                       user_id: user.id,
                       id: iframeMatch.grafico_id,
-                      title: prompt("🔖 Título del gráfico:", "Nuevo gráfico") || "Sin título",
+                      titulo: prompt("🔖 Título del gráfico:", "Nuevo gráfico") || "Sin título",
                       created_at: new Date().toISOString()
                     });
 
