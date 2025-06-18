@@ -1,10 +1,59 @@
+// src/pages/DashboardPage.jsx
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../App';
+import { Loader, ChevronDown, ChevronUp, ExternalLink, Pencil, Trash2, X } from 'lucide-react';
 
+/* helpers ────────────────────────────────────────────────────────── */
+const toCL = n => new Date(n).toLocaleString('es-CL');
+const cls  = (...c) => c.filter(Boolean).join(' ');
+
+/* Snack mini-componente -------------------------------------------------- */
+function Snack({ msg, onClose }) {
+  if (!msg) return null;
+  return (
+    <div className="fixed bottom-6 right-6 bg-emerald-600 text-white px-4 py-2 rounded shadow-lg flex items-center gap-2 animate-fade-in">
+      {msg}
+      <button onClick={onClose} className="ml-2 hover:text-yellow-300">
+        <X size={16}/>
+      </button>
+    </div>
+  );
+}
+
+/* Modal preview --------------------------------------------------------- */
+function Modal({ url, onClose }) {
+  if (!url) return null;
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-[#1c2e1f] w-[90%] h-[90%] rounded-lg shadow-xl overflow-hidden relative">
+        <button onClick={onClose} className="absolute top-2 right-2 bg-white/20 hover:bg-white/40 rounded-full p-1">
+          <X size={20} className="text-white"/>
+        </button>
+        <iframe src={url} className="w-full h-full border-none" allowFullScreen/>
+      </div>
+    </div>
+  );
+}
+
+/* Skeleton card --------------------------------------------------------- */
+const CardSkeleton = () => (
+  <div className="animate-pulse bg-white/60 dark:bg-[#2e2b26] rounded-lg h-[460px]"/>
+);
+
+/* Main page ------------------------------------------------------------- */
 export default function DashboardPage() {
   const [dashboards, setDashboards] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]       = useState(true);
 
+  /* UI state */
+  const [search, setSearch]         = useState('');
+  const [order,  setOrder]          = useState('desc');
+  const [dateFrom, setDateFrom]     = useState('');
+  const [dateTo,   setDateTo]       = useState('');
+  const [snack, setSnack]           = useState('');
+  const [preview, setPreview]       = useState(null);   // url
+
+  /* ─────────── fetch user dashboards ─────────── */
   const fetchDashboards = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -17,122 +66,153 @@ export default function DashboardPage() {
       .from('dashboards')
       .select('*')
       .eq('user_id', user.id)
-      .order('fecha', { ascending: false });
+      .order('fecha', { ascending: order === 'asc' });
 
-    if (error) {
-      alert('Error al cargar dashboards: ' + error.message);
-    } else {
-      setDashboards(data);
-    }
+    if (error) alert('Error al cargar dashboards: ' + error.message);
+    else setDashboards(data);
+
     setLoading(false);
   };
 
-  useEffect(() => {
-    fetchDashboards();
-  }, []);
+  /* fetch on mount + on order change */
+  useEffect(() => { fetchDashboards(); }, [order]);
 
+  /* ─────────── acciones CRUD ─────────── */
   const eliminarDashboard = async (id) => {
-    const confirmar = window.confirm("¿Estás seguro de que quieres eliminar este gráfico?");
-    if (!confirmar) return;
-
-    const { error } = await supabase
-      .from('dashboards')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      alert('Error al eliminar: ' + error.message);
-    } else {
-      setDashboards(dashboards.filter(item => item.id !== id));
+    if (!window.confirm("¿Eliminar este gráfico?")) return;
+    const { error } = await supabase.from('dashboards').delete().eq('id', id);
+    if (error) alert('Error al eliminar: ' + error.message);
+    else {
+      setDashboards(dashboards.filter(d => d.id !== id));
+      setSnack('Gráfico eliminado');
     }
   };
 
   const editarTitulo = async (id, tituloActual) => {
-    const nuevoTitulo = window.prompt("Escribe el nuevo título para este gráfico:", tituloActual);
-    if (!nuevoTitulo || nuevoTitulo.trim() === tituloActual.trim()) return;
+    const nuevo = window.prompt("Nuevo título:", tituloActual);
+    if (!nuevo || nuevo.trim() === tituloActual.trim()) return;
 
-    const { error } = await supabase
-      .from('dashboards')
-      .update({ titulo: nuevoTitulo })
-      .eq('id', id);
-
-    if (error) {
-      alert('Error al actualizar título: ' + error.message);
-    } else {
-      setDashboards(dashboards.map(item =>
-        item.id === id ? { ...item, titulo: nuevoTitulo } : item
-      ));
+    const { error } = await supabase.from('dashboards').update({ titulo: nuevo }).eq('id', id);
+    if (error) alert('Error al actualizar título: ' + error.message);
+    else {
+      setDashboards(dashboards.map(d => d.id === id ? { ...d, titulo: nuevo } : d));
+      setSnack('Título actualizado');
     }
   };
 
+  /* ─────────── filtros locales ─────────── */
+  const filtered = dashboards.filter(d => {
+    const matchTitle = d.titulo.toLowerCase().includes(search.toLowerCase());
+    const fecha = new Date(d.fecha);
+    const inRange =
+      (!dateFrom || fecha >= new Date(dateFrom)) &&
+      (!dateTo   || fecha <= new Date(dateTo));
+    return matchTitle && inRange;
+  });
+
+  /* ─────────── UI ─────────── */
   return (
     <div className="min-h-screen bg-[url('/fondo-forestal-pro.jpg')] bg-cover bg-fixed bg-center p-6">
-
-      {/* Header visual igual al del chat */}
-      <div className="flex justify-between items-center bg-white/90 dark:bg-[#1c2e1f]/90 px-6 py-3 rounded-xl shadow mb-6 max-w-7xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
+      {/* Header */}
+      <header className="flex justify-between items-center bg-white/90 dark:bg-[#1c2e1f]/90 px-6 py-3 rounded-xl shadow mb-6 max-w-7xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <span className="text-2xl">🌲</span>
-          <span className="text-xl font-serif font-bold text-[#5E564D] dark:text-white">
-            Tronix Forest Assistant
-          </span>
+          <span className="text-xl font-serif font-bold text-[#5E564D] dark:text-white">Tronix Forest Assistant</span>
         </div>
-        <div className="flex gap-4 text-sm font-medium">
-          <a href="/chat" className="text-[#5E564D] dark:text-white hover:underline">🌲 Chat Tronix</a>
-          <a href="/dashboards" className="text-[#5E564D] dark:text-white hover:underline">📊 Mis Dashboards</a>
-        </div>
-      </div>
+        <nav className="flex gap-4 text-sm font-medium">
+          <a href="/chat"       className="hover:underline text-[#5E564D] dark:text-white">🌲 Chat Tronix</a>
+          <a href="/dashboards" className="hover:underline text-[#5E564D] dark:text-white">📊 Mis Dashboards</a>
+        </nav>
+      </header>
 
-      <div className="max-w-7xl mx-auto bg-white/90 dark:bg-[#1c2e1f]/90 backdrop-blur-sm p-6 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between mb-6">
+      {/* Contenedor principal */}
+      <section className="max-w-7xl mx-auto bg-white/90 dark:bg-[#1c2e1f]/90 backdrop-blur-sm p-6 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700">
+        {/* título + controles */}
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
           <h2 className="text-2xl font-bold text-[#5E564D] dark:text-white font-serif flex items-center gap-2">
             📊 Mis Dashboards Guardados
           </h2>
+
+          {/* filtros */}
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="search"
+              placeholder="Buscar título..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="border px-3 py-1 rounded text-sm bg-white dark:bg-[#2e2b26]"
+            />
+            <div className="flex items-center gap-1 text-sm">
+              Desde <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} className="border rounded px-2 py-1 bg-white dark:bg-[#2e2b26]"/>
+              Hasta <input type="date" value={dateTo}   onChange={e=>setDateTo(e.target.value)}   className="border rounded px-2 py-1 bg-white dark:bg-[#2e2b26]"/>
+            </div>
+            <button
+              onClick={() => setOrder(o => o === 'asc' ? 'desc' : 'asc')}
+              className="flex items-center gap-1 border px-2 py-1 rounded bg-amber-100 hover:bg-amber-200 text-sm">
+              Orden {order === 'asc' ? 'antiguo→nuevo' : 'nuevo→antiguo'}
+              {order === 'asc' ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+            </button>
+          </div>
         </div>
 
+        {/* listado gráfico */}
         {loading ? (
-          <p className="text-center text-gray-600 dark:text-gray-300">Cargando dashboards...</p>
-        ) : dashboards.length === 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_,i)=><CardSkeleton key={i}/>)}
+          </div>
+        ) : filtered.length === 0 ? (
           <p className="text-center text-gray-500 dark:text-gray-400 italic">
-            Aún no tienes gráficos guardados. Usa el agente Tronix para generarlos y guárdalos aquí.
+            {dashboards.length === 0
+              ? 'Aún no tienes gráficos guardados. Usa el agente Tronix para crearlos.'
+              : 'Ningún gráfico coincide con tu búsqueda/filtro.'}
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {dashboards.map((item) => (
-              <div key={item.id} className="bg-white dark:bg-[#2e2b26] border border-gray-200 dark:border-gray-600 rounded-lg shadow-md hover:shadow-xl transition overflow-hidden relative">
-                <div className="p-4 border-b border-gray-200 dark:border-gray-600">
-                  <h3 className="text-lg font-semibold text-[#5E564D] dark:text-white">{item.titulo}</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Guardado el: {new Date(item.fecha).toLocaleString()}
-                  </p>
-                  <div className="absolute top-2 right-2 flex gap-2">
-                    <button
-                      onClick={() => editarTitulo(item.id, item.titulo)}
-                      className="bg-yellow-400 hover:bg-yellow-500 text-white text-xs px-2 py-1 rounded"
-                      title="Editar título"
-                    >
-                      ✏️
+            {filtered.map(item => (
+              <div key={item.id} className="bg-white dark:bg-[#2e2b26] border border-gray-200 dark:border-gray-600 rounded-lg shadow-md hover:shadow-xl transition overflow-hidden relative group">
+                {/* header card */}
+                <div className="p-4 border-b border-gray-200 dark:border-gray-600 flex justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-[#5E564D] dark:text-white line-clamp-2">{item.titulo}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Guardado: {toCL(item.fecha)}</p>
+                  </div>
+                  <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition">
+                    <button onClick={() => editarTitulo(item.id, item.titulo)} className="bg-yellow-400 hover:bg-yellow-500 rounded p-1" title="Editar título">
+                      <Pencil size={16} className="text-white"/>
                     </button>
-                    <button
-                      onClick={() => eliminarDashboard(item.id)}
-                      className="bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1 rounded"
-                      title="Eliminar gráfico"
-                    >
-                      🗑️
+                    <button onClick={() => eliminarDashboard(item.id)} className="bg-red-500 hover:bg-red-600 rounded p-1" title="Eliminar">
+                      <Trash2 size={16} className="text-white"/>
                     </button>
                   </div>
                 </div>
+
+                {/* iframe */}
                 <iframe
                   src={item.url}
                   className="w-full"
                   style={{ height: '400px', border: 'none' }}
                   allowFullScreen
+                  loading="lazy"
                 />
+
+                {/* overlay link & preview */}
+                <div className="absolute bottom-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                  <a href={item.url} target="_blank" rel="noopener noreferrer" className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full p-2" title="Abrir en nueva pestaña">
+                    <ExternalLink size={16}/>
+                  </a>
+                  <button onClick={() => setPreview(item.url)} className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-2" title="Vista ampliada">
+                    <Loader size={16} className="animate-spin-hidden"/>
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </section>
+
+      {/* Snack & modal */}
+      <Snack msg={snack} onClose={() => setSnack('')}/>
+      <Modal url={preview} onClose={() => setPreview(null)}/>
     </div>
   );
 }
-
