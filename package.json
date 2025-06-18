@@ -18,7 +18,8 @@
     "remark-gfm": "^3.0.1",
     "rehype-sanitize": "^5.0.1",
     "react-plotly.js": "^2.6.0",
-    "plotly.js": "^2.32.0"
+    "plotly.js": "^2.32.0",
+    "lucide-react": "^0.517.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
