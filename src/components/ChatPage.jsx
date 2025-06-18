@@ -146,18 +146,32 @@ export default function ChatPage() {
               {!isUser && (
                 <button
                   onClick={async () => {
-                    const user = (await supabase.auth.getUser()).data.user;
-                    if (!user) {
-                      alert("Debes iniciar sesión para guardar gráficos.");
-                      return;
-                    }
+  const user = (await supabase.auth.getUser()).data.user;
+  if (!user) {
+    alert("Debes iniciar sesión para guardar gráficos.");
+    return;
+  }
 
-                    const { error } = await supabase.from('graficos').insert({
-                      user_id: user.id,
-                      id: iframeMatch.grafico_id,
-                      titulo: prompt("🔖 Título del gráfico:", "Nuevo gráfico") || "Sin título",
-                      created_at: new Date().toISOString()
-                    });
+  const titulo = prompt("🔖 Título del gráfico:", "Nuevo gráfico");
+  if (!titulo) return;
+
+  const grafico_id = iframeMatch.grafico_id;
+  const url = iframeMatch.url;
+
+  // 1. Asegurar que el gráfico existe en la tabla 'graficos'
+  await supabase.from('graficos').upsert({
+    id: grafico_id,
+    created_at: new Date().toISOString()
+  });
+
+  // 2. Asociar el gráfico al usuario en la tabla 'dashboards'
+  const { error } = await supabase.from('dashboards').insert({
+    user_id: user.id,
+    grafico_id,
+    titulo,
+    url,
+    fecha: new Date()
+  });
 
                     if (error) {
                       alert("❌ Error al guardar gráfico: " + error.message);
