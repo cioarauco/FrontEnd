@@ -75,11 +75,13 @@ export default function ChatPage() {
   };
 
   const extractIframe = (text) => {
-    const match = text.match(/!\[.*?\]\((https?:\/\/[^\s)]+\?grafico_id=[^\s)]+)\)/);
+    const match = text.match(/!\[.*?\]\((https?:\/\/[^\s)]+\?grafico_id=([a-zA-Z0-9-]+))\)/);
     if (match) {
-      const url = match[1];
-      const cleanedText = text.replace(match[0], '').trim();
-      return { url, cleanedText };
+      return {
+        url: match[1],
+        grafico_id: match[2],
+        cleanedText: text.replace(match[0], '').trim()
+      };
     }
     return null;
   };
@@ -141,6 +143,33 @@ export default function ChatPage() {
             <>
               <div className="text-sm mt-2" dangerouslySetInnerHTML={{ __html: iframeMatch.cleanedText.replace(/\n/g, '<br/>') }} />
               <iframe src={iframeMatch.url} className="w-full mt-3 rounded-lg border" style={{ height: '400px' }} allowFullScreen />
+              {!isUser && (
+                <button
+                  onClick={async () => {
+                    const user = (await supabase.auth.getUser()).data.user;
+                    if (!user) {
+                      alert("Debes iniciar sesión para guardar gráficos.");
+                      return;
+                    }
+
+                    const { error } = await supabase.from('graficos').insert({
+                      user_id: user.id,
+                      grafico_id: iframeMatch.grafico_id,
+                      title: prompt("🔖 Título del gráfico:", "Nuevo gráfico") || "Sin título",
+                      created_at: new Date().toISOString()
+                    });
+
+                    if (error) {
+                      alert("❌ Error al guardar gráfico: " + error.message);
+                    } else {
+                      alert("✅ Gráfico guardado en tu dashboard.");
+                    }
+                  }}
+                  className="mt-3 bg-[#DFA258] hover:bg-[#c79046] text-black px-3 py-1 rounded text-xs shadow"
+                >
+                  💾 Guardar gráfico en Mis Dashboards
+                </button>
+              )}
             </>
           ) : (
             <div className="text-sm mt-2">
