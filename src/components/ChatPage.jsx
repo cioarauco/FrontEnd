@@ -179,6 +179,7 @@ export default function ChatPage() {
         <div className="flex gap-4 text-sm font-medium">
           <a href="/chat" className="text-[#5E564D] dark:text-white hover:underline">🌲 Chat Tronix</a>
           <a href="/dashboards" className="text-[#5E564D] dark:text-white hover:underline">📊 Mis Dashboards</a>
+          <a href="/panel-ejecutivo" className="text-[#5E564D] dark:text-white hover:underline">📈 Panel Ejecutivo</a>
           <a href="/" onClick={() => supabase.auth.signOut()} className="text-[#5E564D] dark:text-red-400 hover:underline">🚪 Cerrar sesión</a>
         </div>
       </div>
