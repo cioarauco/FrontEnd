@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { supabase } from '../App';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaUserCircle, FaTree } from 'react-icons/fa';
+import { FaUserCircle, FaTree, FaTrashAlt } from 'react-icons/fa';
 
 const WEBHOOK_URL = 'https://n8n-production-993e.up.railway.app/webhook/01103618-3424-4455-bde6-aa8d295157b2';
 
@@ -22,37 +22,29 @@ export default function ChatPage() {
   }, [messages]);
 
   const fetchFrequentQuestions = async () => {
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      console.warn("No se pudo obtener el usuario:", userError);
+      return;
+    }
 
-  if (userError || !user) {
-    console.warn("No se pudo obtener el usuario:", userError);
-    return;
-  }
+    const { data, error } = await supabase
+      .from('preguntas_frecuentes')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('fecha_creacion', { ascending: false });
 
-  console.log("🧠 ID del usuario actual:", user.id); // DEBUG
-
-  const { data, error } = await supabase
-    .from('preguntas_frecuentes')
-    .select('*')
-    .eq('user_id', user.id) // debe ser UUID exacto
-    .order('fecha_creacion', { ascending: false });
-
-  if (error) {
-    console.error("❌ Error al consultar preguntas frecuentes:", error.message);
-  } else {
-    console.log("✅ Preguntas obtenidas:", data);
-    setFrequentQuestions(data);
-  }
-};
-
+    if (error) {
+      console.error("❌ Error al consultar preguntas frecuentes:", error.message);
+    } else {
+      setFrequentQuestions(data);
+    }
+  };
 
   useEffect(() => {
     fetchFrequentQuestions();
   }, []);
-  
+
   const handleSend = async () => {
     if (!input.trim()) return;
 
@@ -63,14 +55,7 @@ export default function ChatPage() {
     try {
       const res = await axios.post(WEBHOOK_URL, { message: input });
       const raw = res.data.response || res.data;
-
-      let parsed;
-      if (Array.isArray(raw) && raw[0]?.output) {
-        parsed = raw[0].output;
-      } else {
-        parsed = raw;
-      }
-
+      const parsed = Array.isArray(raw) && raw[0]?.output ? raw[0].output : raw;
       const agentReply = { role: 'agent', content: parsed, timestamp: new Date().toISOString() };
       setMessages((prev) => [...prev, agentReply]);
     } catch (error) {
@@ -99,6 +84,18 @@ export default function ChatPage() {
     return null;
   };
 
+  const handleEliminarPregunta = async (id) => {
+    const confirmacion = confirm("¿Eliminar esta pregunta de tus favoritos?");
+    if (!confirmacion) return;
+
+    const { error } = await supabase.from('preguntas_frecuentes').delete().eq('id', id);
+    if (error) {
+      alert("❌ Error al eliminar: " + error.message);
+    } else {
+      fetchFrequentQuestions();
+    }
+  };
+
   const renderMessage = (msg, index) => {
     const isUser = msg.role === 'user';
     const baseStyle = isUser
@@ -106,7 +103,6 @@ export default function ChatPage() {
       : 'bg-[#DFA258] text-black dark:text-white rounded-r-3xl rounded-bl-3xl';
     const icon = isUser ? <FaUserCircle className="text-xl" /> : <FaTree className="text-xl text-[#5E564D]" />;
     const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-
     const iframeMatch = typeof msg.content === 'string' ? extractIframe(msg.content) : null;
 
     const handleGuardarPregunta = async () => {
@@ -178,9 +174,7 @@ export default function ChatPage() {
       <div className="flex justify-between items-center bg-white/90 dark:bg-[#1c2e1f]/90 px-6 py-3 rounded-xl shadow mb-6 max-w-4xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <FaTree className="text-2xl text-[#D2C900]" />
-          <span className="text-xl font-serif font-bold text-[#5E564D] dark:text-white">
-            Tronix Forest Assistant
-          </span>
+          <span className="text-xl font-serif font-bold text-[#5E564D] dark:text-white">Tronix Forest Assistant</span>
         </div>
         <div className="flex gap-4 text-sm font-medium">
           <a href="/chat" className="text-[#5E564D] dark:text-white hover:underline">🌲 Chat Tronix</a>
@@ -195,13 +189,17 @@ export default function ChatPage() {
           {frequentQuestions.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {frequentQuestions.map((q, i) => (
-                <button
-                  key={i}
-                  onClick={() => setInput(q.pregunta)}
-                  className="bg-[#FDF3BF] text-[#5E564D] px-3 py-1 rounded text-xs hover:bg-[#eee0aa] font-medium"
-                >
-                  {q.pregunta}
-                </button>
+                <div key={i} className="flex items-center bg-[#FDF3BF] text-[#5E564D] px-3 py-1 rounded text-xs font-medium">
+                  <button
+                    onClick={() => setInput(q.pregunta)}
+                    className="hover:underline mr-2"
+                  >
+                    {q.pregunta}
+                  </button>
+                  <button onClick={() => handleEliminarPregunta(q.id)} className="text-red-500 hover:text-red-700 ml-1">
+                    <FaTrashAlt className="text-xs" />
+                  </button>
+                </div>
               ))}
             </div>
           ) : (
