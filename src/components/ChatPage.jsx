@@ -39,7 +39,7 @@ export default function ChatPage() {
     const fetchWithAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        fetchFrequentQuestions();
+        fetchFrequentQuestions(user.id);
       }
     };
     fetchWithAuth();
