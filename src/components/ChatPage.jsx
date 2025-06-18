@@ -36,15 +36,9 @@ export default function ChatPage() {
   };
 
   useEffect(() => {
-    const fetchWithAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        fetchFrequentQuestions(user.id);
-      }
-    };
-    fetchWithAuth();
+    fetchFrequentQuestions();
   }, []);
-
+  
   const handleSend = async () => {
     if (!input.trim()) return;
 
