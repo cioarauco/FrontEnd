@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import ChatPage from '@/components/ChatPage';
 import DashboardPage from '@/components/DashboardPage';
 import Login from '@/components/Login';
+import PanelEjecutivo from '@/components/PanelEjecutivo'; // ✅ NUEVO COMPONENTE
 
 export const supabase = createClient(
   "https://kvenozirujsvjrsmpqhu.supabase.co",
@@ -16,10 +17,10 @@ function App() {
         <Route path="/" element={<Login />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/dashboards" element={<DashboardPage />} />
+        <Route path="/panel-ejecutivo" element={<PanelEjecutivo />} /> {/* ✅ RUTA NUEVA */}
       </Routes>
     </BrowserRouter>
   );
 }
 
 export default App;
-
