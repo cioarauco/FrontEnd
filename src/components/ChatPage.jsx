@@ -22,18 +22,32 @@ export default function ChatPage() {
   }, [messages]);
 
   const fetchFrequentQuestions = async () => {
-    const user = (await supabase.auth.getUser()).data.user;
-    if (!user) return;
-    const { data, error } = await supabase
-      .from('preguntas_frecuentes')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('fecha_creacion', { ascending: false });
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-    if (!error && data) {
-      setFrequentQuestions(data);
-    }
-  };
+  if (userError || !user) {
+    console.warn("No se pudo obtener el usuario:", userError);
+    return;
+  }
+
+  console.log("🧠 ID del usuario actual:", user.id); // DEBUG
+
+  const { data, error } = await supabase
+    .from('preguntas_frecuentes')
+    .select('*')
+    .eq('user_id', user.id) // debe ser UUID exacto
+    .order('fecha_creacion', { ascending: false });
+
+  if (error) {
+    console.error("❌ Error al consultar preguntas frecuentes:", error.message);
+  } else {
+    console.log("✅ Preguntas obtenidas:", data);
+    setFrequentQuestions(data);
+  }
+};
+
 
   useEffect(() => {
     fetchFrequentQuestions();
