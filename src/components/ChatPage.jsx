@@ -167,7 +167,7 @@ export default function ChatPage() {
   // 2. Asociar el gráfico al usuario en la tabla 'dashboards'
   const { error } = await supabase.from('dashboards').insert({
     user_id: user.id,
-    grafico_id,
+    id: grafico_id,
     titulo,
     url,
     fecha: new Date()
