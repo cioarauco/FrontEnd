@@ -1,190 +1,171 @@
 // src/components/PanelEjecutivo.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../App';
 import Plot from 'react-plotly.js';
 
-const verde = '#00563F';
+/* 🎨 Colores corporativos */
+const verde   = '#00563F';
 const naranja = '#DFA258';
 
+/* ────────────────────────────────────────────────────────────── */
 export default function PanelEjecutivo() {
-  /* ─────────────────────────  state  ───────────────────────── */
-  const [metricas, setMetricas] = useState({
-    produccionTotal: 0,
-    despachosTotales: 0,
-    stockPredios: 0
-  });
+  /* 1️⃣  Estados ---------------------------------------------------------- */
+  const [raw, setRaw] = useState({ prod: [], desp: [], stock: [] });
+  const [loading, setLoading] = useState(true);
 
-  const [charts, setCharts] = useState({
-    team: null,
-    fecha: null,
-    calidadProd: null,
-    despachoDestino: null,
-    despachoLargo: null,
-    despachoCalidad: null,
-    stockZona: null,
-    stockCalidad: null
-  });
+  /* filtros globales */
+  const [zonaSel, setZonaSel]       = useState('Todas las Zonas');
+  const [calidadSel, setCalidadSel] = useState('Todas las Calidades');
 
-  /* filtros */
-  const [zonaSel, setZonaSel] = useState('TODAS');
-  const [calidadSel, setCalidadSel] = useState('TODAS');
-  const [zonasDisp, setZonasDisp] = useState([]);
-  const [calidadesDisp, setCalidadesDisp] = useState([]);
-
-  /* ────────────────────────  fetch + build  ────────────────── */
+  /* 2️⃣  Fetch único de datos -------------------------------------------- */
   useEffect(() => {
     (async () => {
-      /* 1️⃣ Producción ------------------------------------------------------ */
-      const { data: prodRaw } = await supabase
-        .from('comparativa_produccion_teams')
-        .select('team, fecha, calidad, produccion_total, volumen_proyectado');
+      try {
+        const { data: prod } = await supabase
+          .from('comparativa_produccion_teams')
+          .select('team, fecha, zona, calidad, produccion_total, volumen_proyectado');
 
-      /* 2️⃣ Despachos ------------------------------------------------------- */
-      const { data: despRaw } = await supabase
-        .from('comparativa_despachos')
-        .select('codigo_destino, largo, calidad, volumen_planificado, volumen_despachado');
+        const { data: desp } = await supabase
+          .from('comparativa_despachos')
+          .select('codigo_destino, largo, zona, calidad, volumen_planificado, volumen_despachado');
 
-      /* 3️⃣ Stock ----------------------------------------------------------- */
-      const { data: stockRaw } = await supabase
-        .from('vista_dashboard_stock_predios_detallado')
-        .select('zona, calidad, volumen_total');
+        const { data: stock } = await supabase
+          .from('vista_dashboard_stock_predios_detallado')
+          .select('zona, calidad, volumen_total');
 
-      /* opciones de filtros (solo 1 vez) */
-      setZonasDisp(Array.from(new Set(stockRaw?.map(r => r.zona))).sort());
-      const cali = new Set([
-        ...prodRaw?.map(r => r.calidad) ?? [],
-        ...despRaw?.map(r => r.calidad) ?? [],
-        ...stockRaw?.map(r => r.calidad) ?? []
-      ]);
-      setCalidadesDisp(Array.from(cali).sort());
-
-      /* helper filtros */
-      const pasaFiltros = r => {
-        if (zonaSel !== 'TODAS' && 'zona' in r && r.zona !== zonaSel) return false;
-        if (calidadSel !== 'TODAS' && 'calidad' in r && r.calidad !== calidadSel) return false;
-        return true;
-      };
-
-      const prod = prodRaw?.filter(r => pasaFiltros({ ...r }));
-      const desp = despRaw?.filter(r => pasaFiltros({ ...r }));
-      const stock = stockRaw?.filter(r => pasaFiltros({ ...r }));
-
-      /* ──────────────  aggregations  ────────────── */
-      const prodPorTeam = {}, prodPorFecha = {}, prodPorCalidad = {};
-      let produccionAcum = 0, proyeccionAcum = 0;
-
-      prod?.forEach(r => {
-        prodPorTeam[r.team] ??= { real: 0, proj: 0 };
-        prodPorTeam[r.team].real += +r.produccion_total || 0;
-        prodPorTeam[r.team].proj += +r.volumen_proyectado || 0;
-
-        prodPorFecha[r.fecha] ??= { real: 0, proj: 0 };
-        prodPorFecha[r.fecha].real += +r.produccion_total || 0;
-        prodPorFecha[r.fecha].proj += +r.volumen_proyectado || 0;
-
-        prodPorCalidad[r.calidad] ??= { real: 0, proj: 0 };
-        prodPorCalidad[r.calidad].real += +r.produccion_total || 0;
-        prodPorCalidad[r.calidad].proj += +r.volumen_proyectado || 0;
-
-        produccionAcum += +r.produccion_total || 0;
-        proyeccionAcum += +r.volumen_proyectado || 0;
-      });
-
-      const despDest = {}, despLargo = {}, despCalidad = {};
-      let despPlan = 0, despReal = 0;
-
-      desp?.forEach(r => {
-        despDest[r.codigo_destino] ??= { plan: 0, real: 0 };
-        despDest[r.codigo_destino].plan += +r.volumen_planificado || 0;
-        despDest[r.codigo_destino].real += +r.volumen_despachado || 0;
-
-        despLargo[r.largo] ??= { plan: 0, real: 0 };
-        despLargo[r.largo].plan += +r.volumen_planificado || 0;
-        despLargo[r.largo].real += +r.volumen_despachado || 0;
-
-        despCalidad[r.calidad] ??= { plan: 0, real: 0 };
-        despCalidad[r.calidad].plan += +r.volumen_planificado || 0;
-        despCalidad[r.calidad].real += +r.volumen_despachado || 0;
-
-        despPlan += +r.volumen_planificado || 0;
-        despReal += +r.volumen_despachado || 0;
-      });
-
-      const stockZona = {}, stockCalidad = {};
-      let stockAcum = 0;
-
-      stock?.forEach(r => {
-        stockZona[r.zona] = (stockZona[r.zona] || 0) + (+r.volumen_total || 0);
-        stockCalidad[r.calidad] = (stockCalidad[r.calidad] || 0) + (+r.volumen_total || 0);
-        stockAcum += +r.volumen_total || 0;
-      });
-
-      setMetricas({
-        produccionTotal: produccionAcum,
-        despachosTotales: despReal,
-        stockPredios: stockAcum
-      });
-
-      /* ─────────────  plot builders  ───────────── */
-      const toBar = (obj, l1, l2, n1, n2) => ({
-        data: [
-          { x: Object.keys(obj), y: Object.values(obj).map(v => v[l1]), type: 'bar', name: n1, marker: { color: verde } },
-          { x: Object.keys(obj), y: Object.values(obj).map(v => v[l2]), type: 'bar', name: n2, marker: { color: naranja } }
-        ],
-        layout: { margin: { t: 40, b: 60 }, legend: { orientation: 'h' } }
-      });
-
-      const toLine = obj => ({
-        data: [
-          { x: Object.keys(obj), y: Object.values(obj).map(v => v.real), type: 'scatter', mode: 'lines+markers', name: 'Real', line: { color: verde } },
-          { x: Object.keys(obj), y: Object.values(obj).map(v => v.proj), type: 'scatter', mode: 'lines+markers', name: 'Proyección', line: { color: naranja } }
-        ],
-        layout: { margin: { t: 40, b: 60 }, legend: { orientation: 'h' } }
-      });
-
-      setCharts({
-        team: toBar(prodPorTeam, 'real', 'proj', 'Producción', 'Proyección'),
-        fecha: toLine(prodPorFecha),
-        calidadProd: toBar(prodPorCalidad, 'real', 'proj', 'Producción', 'Proyección'),
-        despachoDestino: toBar(despDest, 'real', 'plan', 'Despachado', 'Planificado'),
-        despachoLargo: toBar(despLargo, 'real', 'plan', 'Despachado', 'Planificado'),
-        despachoCalidad: toBar(despCalidad, 'real', 'plan', 'Despachado', 'Planificado'),
-        stockZona: {
-          data: [{ x: Object.keys(stockZona), y: Object.values(stockZona), type: 'bar', marker: { color: naranja } }],
-          layout: { margin: { t: 40, b: 60 } }
-        },
-        stockCalidad: {
-          data: [{ x: Object.keys(stockCalidad), y: Object.values(stockCalidad), type: 'bar', marker: { color: verde } }],
-          layout: { margin: { t: 40, b: 60 } }
-        }
-      });
+        setRaw({ prod: prod || [], desp: desp || [], stock: stock || [] });
+      } finally {
+        setLoading(false);
+      }
     })();
-  }, [zonaSel, calidadSel]);
+  }, []);
 
-  /* ──────────────────────────  render  ─────────────────────── */
+  /* 3️⃣  Valores únicos para los select ---------------------------------- */
+  const zonasDisp = useMemo(() => {
+    const all = new Set([
+      ...raw.prod.map(r => r.zona),
+      ...raw.desp.map(r => r.zona),
+      ...raw.stock.map(r => r.zona)
+    ].filter(Boolean));
+    return ['Todas las Zonas', ...Array.from(all).sort()];
+  }, [raw]);
+
+  const calidadesDisp = useMemo(() => {
+    const all = new Set([
+      ...raw.prod.map(r => r.calidad),
+      ...raw.desp.map(r => r.calidad),
+      ...raw.stock.map(r => r.calidad)
+    ].filter(Boolean));
+    return ['Todas las Calidades', ...Array.from(all).sort()];
+  }, [raw]);
+
+  /* 4️⃣  Aplicar filtros (useMemo) --------------------------------------- */
+  const pasaFiltros = r =>
+    (zonaSel   === 'Todas las Zonas'    || r.zona    === zonaSel) &&
+    (calidadSel=== 'Todas las Calidades'|| r.calidad === calidadSel);
+
+  const prodFil  = useMemo(() => raw.prod .filter(pasaFiltros), [raw, zonaSel, calidadSel]);
+  const despFil  = useMemo(() => raw.desp .filter(pasaFiltros), [raw, zonaSel, calidadSel]);
+  const stockFil = useMemo(() => raw.stock.filter(pasaFiltros), [raw, zonaSel, calidadSel]);
+
+  /* 5️⃣  Métricas --------------------------------------------------------- */
+  const metricas = useMemo(() => ({
+    prodTot : prodFil .reduce((a,r)=>a+ +r.produccion_total ,0),
+    despTot : despFil .reduce((a,r)=>a+ +r.volumen_despachado,0),
+    stockTot: stockFil.reduce((a,r)=>a+ +r.volumen_total    ,0)
+  }), [prodFil, despFil, stockFil]);
+
+  /* 6️⃣  Helpers de agregación ------------------------------------------- */
+  const aggProd = (key) => {
+    const acc={};
+    prodFil.forEach(r=>{
+      const k=r[key]??'—';
+      acc[k]??={real:0,proj:0};
+      acc[k].real+=+r.produccion_total;
+      acc[k].proj+=+r.volumen_proyectado;
+    });
+    return acc;
+  };
+
+  const aggDesp = (key) => {
+    const acc={};
+    despFil.forEach(r=>{
+      const k=r[key]??'—';
+      acc[k]??={real:0,plan:0};
+      acc[k].real+=+r.volumen_despachado;
+      acc[k].plan+=+r.volumen_planificado;
+    });
+    return acc;
+  };
+
+  const aggStock = (key) => {
+    const acc={};
+    stockFil.forEach(r=>{
+      const k=r[key]??'—';
+      acc[k]=(acc[k]||0)+ +r.volumen_total;
+    });
+    return acc;
+  };
+
+  /* 7️⃣  Build trazas Plotly --------------------------------------------- */
+  const toBar = (obj,l1,l2,n1,n2) => ([
+    { x:Object.keys(obj), y:Object.values(obj).map(v=>v[l1]), type:'bar', name:n1, marker:{color:verde}   },
+    { x:Object.keys(obj), y:Object.values(obj).map(v=>v[l2]), type:'bar', name:n2, marker:{color:naranja}}
+  ]);
+
+  const toLine = (obj) => ([
+    { x:Object.keys(obj), y:Object.values(obj).map(v=>v.real), type:'scatter', mode:'lines+markers', name:'Real'      , line:{color:verde}   },
+    { x:Object.keys(obj), y:Object.values(obj).map(v=>v.proj), type:'scatter', mode:'lines+markers', name:'Proyección', line:{color:naranja}}
+  ]);
+
+  const charts = {
+    /* producción */
+    team       : { traces: toBar (aggProd('team')  ,'real','proj','Real','Proyección'), extra:{barmode:'group'} },
+    fecha      : { traces: toLine(aggProd('fecha')),                                    extra:{}                },
+    calidadProd: { traces: toBar (aggProd('calidad'),'real','proj','Real','Proyección'), extra:{barmode:'group'} },
+    /* despachos */
+    despDest   : { traces: toBar (aggDesp('codigo_destino'),'real','plan','Despachado','Planificado'),            extra:{barmode:'group'} },
+    despLargo  : { traces: toBar (aggDesp('largo')         ,'real','plan','Despachado','Planificado'),            extra:{barmode:'group'} },
+    despCalidad: { traces: toBar (aggDesp('calidad')       ,'real','plan','Despachado','Planificado'),            extra:{barmode:'group'} },
+    /* stock */
+    stockZona  : { traces: [{ x:Object.keys(aggStock('zona')),    y:Object.values(aggStock('zona')),    type:'bar', marker:{color:naranja} }], extra:{} },
+    stockCalid : { traces: [{ x:Object.keys(aggStock('calidad')), y:Object.values(aggStock('calidad')), type:'bar', marker:{color:verde  } }], extra:{} }
+  };
+
+  /* 8️⃣  Pequeños componentes -------------------------------------------- */
+  const numberCL = n => n.toLocaleString('es-CL');
+
   const Metric = ({ title, value }) => (
     <div className="bg-[#DFA258] text-black rounded-md p-4 flex flex-col items-center w-full">
       <span className="text-xs font-medium">{title}</span>
-      <span className="text-lg font-extrabold tracking-tight">{value.toLocaleString()}</span>
+      <span className="text-lg font-extrabold tracking-tight">{numberCL(value)}</span>
     </div>
   );
 
-  const ChartCard = ({ title, cfg, wide }) => (
-    <div className={`bg-white/80 dark:bg-[#1c2e1f]/90 border border-gray-200 dark:border-gray-700 rounded-lg shadow p-3 ${wide ? 'lg:col-span-3' : 'lg:col-span-1'}`}>
+  const ChartCard = ({ title, cfg, wide=false }) => (
+    <div className={`bg-white/80 dark:bg-[#1c2e1f]/90 border border-gray-200 dark:border-gray-700 rounded-lg shadow p-3 ${wide?'lg:col-span-3':'lg:col-span-1'}`}>
       <h4 className="text-center text-sm font-semibold mb-2 text-[#5E564D] dark:text-white">{title}</h4>
-      {cfg ? (
-        <Plot
-          data={cfg.data}
-          layout={{ ...cfg.layout, autosize: true, height: 300, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: { family: 'inherit', size: 10 } }}
-          useResizeHandler
-          style={{ width: '100%', height: '100%' }}
-          config={{ displayModeBar: false }}
-        />
-      ) : (
-        <div className="h-48 flex items-center justify-center text-gray-400">Cargando…</div>
-      )}
+      <Plot
+        data={cfg.traces}
+        layout={{
+          autosize:true,
+          height:300,
+          margin:{t:40,l:40,r:10,b:60},
+          legend:{orientation:'h'},
+          ...cfg.extra,
+          paper_bgcolor:'rgba(0,0,0,0)',
+          plot_bgcolor:'rgba(0,0,0,0)',
+          font:{size:10}
+        }}
+        useResizeHandler
+        style={{width:'100%',height:'100%'}}
+        config={{displayModeBar:false}}
+      />
     </div>
   );
+
+  /* 9️⃣  UI --------------------------------------------------------------- */
+  if (loading) return <p className="text-center mt-10 text-gray-600">Cargando datos…</p>;
 
   return (
     <div className="min-h-screen bg-[url('/fondo-forestal-pro.jpg')] bg-cover bg-fixed bg-center p-4">
@@ -194,46 +175,41 @@ export default function PanelEjecutivo() {
           📊 Panel Ejecutivo Forestal
         </span>
         <div className="flex gap-4">
-          <a href="/chat" className="hover:underline text-[#5E564D] dark:text-white">🌲 Chat Tronix</a>
+          <a href="/chat"       className="hover:underline text-[#5E564D] dark:text-white">🌲 Chat Tronix</a>
           <a href="/dashboards" className="hover:underline text-[#5E564D] dark:text-white">📈 Mis Dashboards</a>
         </div>
       </nav>
 
       {/* filtros */}
-      <div className="flex flex-wrap gap-4 max-w-6xl mx-auto mb-4">
-        <div>
-          <label className="block text-xs font-medium text-[#5E564D] dark:text-white mb-1">Zona</label>
-          <select value={zonaSel} onChange={e => setZonaSel(e.target.value)} className="bg-white dark:bg-[#1c2e1f] border border-gray-300 dark:border-gray-600 rounded p-1 text-sm">
-            <option value="TODAS">Todas</option>
-            {zonasDisp.map(z => <option key={z} value={z}>{z}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-[#5E564D] dark:text-white mb-1">Calidad</label>
-          <select value={calidadSel} onChange={e => setCalidadSel(e.target.value)} className="bg-white dark:bg-[#1c2e1f] border border-gray-300 dark:border-gray-600 rounded p-1 text-sm">
-            <option value="TODAS">Todas</option>
-            {calidadesDisp.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
+      <div className="max-w-6xl mx-auto mb-4 flex gap-4 flex-wrap items-center">
+        <select value={zonaSel} onChange={e=>setZonaSel(e.target.value)} className="border rounded px-2 py-1 text-sm">
+          {zonasDisp.map(z=><option key={z}>{z}</option>)}
+        </select>
+        <select value={calidadSel} onChange={e=>setCalidadSel(e.target.value)} className="border rounded px-2 py-1 text-sm">
+          {calidadesDisp.map(c=><option key={c}>{c}</option>)}
+        </select>
       </div>
 
       {/* métricas */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-6xl mx-auto mb-4">
-        <Metric title="Producción Total (m³)" value={metricas.produccionTotal} />
-        <Metric title="Despachos Totales (m³)" value={metricas.despachosTotales} />
-        <Metric title="Stock en Predios (m³)" value={metricas.stockPredios} />
+        <Metric title="Producción Total (m³)" value={metricas.prodTot} />
+        <Metric title="Despachos Totales (m³)" value={metricas.despTot} />
+        <Metric title="Stock en Predios (m³)" value={metricas.stockTot} />
       </div>
 
-      {/* grid gráficos */}
+      {/* gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 max-w-6xl mx-auto">
-        <ChartCard title="Comparativa Producción vs Proyección – por Team" cfg={charts.team} wide />
-        <ChartCard title="Comparativa Producción vs Proyección – por Fecha" cfg={charts.fecha} wide />
-        <ChartCard title="Producción vs Proyección – por Calidad" cfg={charts.calidadProd} />
-        <ChartCard title="Despachos por Destino" cfg={charts.despachoDestino} />
-        <ChartCard title="Despachos por Largo" cfg={charts.despachoLargo} />
-        <ChartCard title="Despachos por Calidad" cfg={charts.despachoCalidad} />
-        <ChartCard title="Stock por Zona" cfg={charts.stockZona} />
-        <ChartCard title="Stock por Calidad" cfg={charts.stockCalidad} />
+        {/* fila 1 (a lo largo) */}
+        <ChartCard title="Prod. vs Proy. – Team"   cfg={charts.team}  wide />
+        <ChartCard title="Prod. vs Proy. – Fecha"  cfg={charts.fecha} wide />
+        {/* fila 2 */}
+        <ChartCard title="Prod. vs Proy. – Calidad" cfg={charts.calidadProd}/>
+        <ChartCard title="Despachos – Destino"      cfg={charts.despDest}/>
+        <ChartCard title="Despachos – Largo"        cfg={charts.despLargo}/>
+        {/* fila 3 */}
+        <ChartCard title="Despachos – Calidad"      cfg={charts.despCalidad}/>
+        <ChartCard title="Stock – Zona"             cfg={charts.stockZona}/>
+        <ChartCard title="Stock – Calidad"          cfg={charts.stockCalid}/>
       </div>
     </div>
   );
