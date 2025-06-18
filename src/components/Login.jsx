@@ -36,7 +36,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[url('/camioncito.png')] bg-cover bg-fixed bg-center p-6 flex items-center justify-center">
+    <div className="min-h-screen bg-[url('/bosque con animalitos.png')] bg-cover bg-fixed bg-center p-6 flex items-center justify-center">
       <div className="bg-white/90 dark:bg-[#1c2e1f]/90 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-8 w-full max-w-sm space-y-5">
         
         <div className="flex items-center justify-center gap-2 mb-4">
