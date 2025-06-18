@@ -136,6 +136,14 @@ export default function DashboardPage() {
         <nav className="flex gap-4 text-sm font-medium">
           <a href="/chat"       className="hover:underline text-[#5E564D] dark:text-white">🌲 Chat Tronix</a>
           <a href="/dashboards" className="hover:underline text-[#5E564D] dark:text-white">📊 Mis Dashboards</a>
+          <a href="/panel-ejecutivo"  className="hover:underline text-[#5E564D] dark:text-white">📈 Panel Ejecutivo</a>
+          <a
+            href="/"
+            onClick={() => supabase.auth.signOut()}
+            className="hover:underline text-[#5E564D] dark:text-red-400"
+          >
+            🚪 Cerrar sesión
+          </a>
         </nav>
       </header>
 
