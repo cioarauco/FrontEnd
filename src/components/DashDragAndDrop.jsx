@@ -1,83 +1,81 @@
-
 import React, { useEffect, useState } from 'react';
-import { Responsive, WidthProvider } from 'react-grid-layout';
 import { supabase } from '../App';
-import 'react-grid-layout/css/styles.css';
-import 'react-resizable/css/styles.css';
-
-const ResponsiveGridLayout = WidthProvider(Responsive);
+import {
+  DragDropContext,
+  Droppable,
+  Draggable
+} from '@hello-pangea/dnd';
 
 export default function DashDragAndDrop() {
-  const [layouts, setLayouts] = useState([]);
-  const [userId, setUserId] = useState(null);
+  const [items, setItems] = useState([]);
 
+  /* carga dashboards_interactivo */
   useEffect(() => {
-    const fetchUserAndData = async () => {
+    (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      setUserId(user.id);
-
-      const { data, error } = await supabase
-        .from('dashboards_drag')
+      const { data } = await supabase
+        .from('dashboards_interactivo')
         .select('*')
-        .eq('user_id', user.id);
-
-      if (data) {
-        const layoutData = data.map((item, index) => ({
-          i: item.id,
-          x: item.x,
-          y: item.y,
-          w: item.w,
-          h: item.h,
-          title: item.titulo,
-          url: item.url
-        }));
-        setLayouts(layoutData);
-      }
-    };
-
-    fetchUserAndData();
+        .eq('user_id', user.id)
+        .order('orden', { ascending: true });
+      setItems(data);
+    })();
   }, []);
 
-  const handleLayoutChange = async (currentLayout) => {
-    setLayouts(prev =>
-      prev.map(item => {
-        const updated = currentLayout.find(l => l.i === item.i);
-        return updated ? { ...item, ...updated } : item;
-      })
-    );
+  const handleDragEnd = async (result) => {
+    if (!result.destination) return;
+    const reordered = Array.from(items);
+    const [moved]  = reordered.splice(result.source.index, 1);
+    reordered.splice(result.destination.index, 0, moved);
+    setItems(reordered);
 
-    for (const l of currentLayout) {
-      await supabase.from('dashboards_drag').update({
-        x: l.x,
-        y: l.y,
-        w: l.w,
-        h: l.h
-      }).eq('id', l.i).eq('user_id', userId);
+    /* persiste nuevo orden */
+    for (let i = 0; i < reordered.length; i++) {
+      await supabase
+        .from('dashboards_interactivo')
+        .update({ orden: i })
+        .eq('id', reordered[i].id);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[url('/fondo-forestal-pro.jpg')] bg-cover bg-fixed bg-center p-4">
-      <div className="max-w-7xl mx-auto bg-white/80 dark:bg-[#1c2e1f]/80 rounded-xl p-6 shadow-lg border dark:border-gray-700">
-        <h1 className="text-2xl font-bold text-[#5E564D] dark:text-white mb-4">📦 Dashboard Interactivo</h1>
-        <ResponsiveGridLayout
-          className="layout"
-          layouts={{ lg: layouts }}
-          breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480 }}
-          cols={{ lg: 12, md: 10, sm: 6, xs: 2 }}
-          rowHeight={40}
-          onLayoutChange={handleLayoutChange}
-          isResizable
-          isDraggable
-        >
-          {layouts.map(item => (
-            <div key={item.i} className="bg-white border rounded-lg p-2 shadow">
-              <h2 className="text-sm font-bold text-gray-800 mb-1">{item.title}</h2>
-              <iframe src={item.url} className="w-full h-full rounded border" allowFullScreen />
-            </div>
-          ))}
-        </ResponsiveGridLayout>
+    <div className="min-h-screen bg-[url('/bosqueconanimalitos.png')] bg-cover bg-fixed bg-center p-6">
+      <div className="max-w-4xl mx-auto bg-white/90 dark:bg-[#1c2e1f]/90 p-6 rounded-xl shadow-lg">
+        <h1 className="text-2xl font-bold text-[#5E564D] dark:text-white mb-6">
+          🧩 Dash Interactivo (drag & drop)
+        </h1>
+
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <Droppable droppableId="lista">
+            {(provided) => (
+              <div ref={provided.innerRef} {...provided.droppableProps}>
+                {items.map((it, idx) => (
+                  <Draggable key={it.id} draggableId={it.id} index={idx}>
+                    {(prov) => (
+                      <div
+                        ref={prov.innerRef}
+                        {...prov.draggableProps}
+                        {...prov.dragHandleProps}
+                        className="mb-4 bg-white rounded shadow p-3"
+                      >
+                        <h3 className="font-semibold text-sm mb-2">
+                          {it.titulo}
+                        </h3>
+                        <iframe
+                          src={it.url}
+                          className="w-full h-60 border rounded"
+                          allowFullScreen
+                        />
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        </DragDropContext>
       </div>
     </div>
   );
