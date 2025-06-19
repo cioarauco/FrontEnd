@@ -7,14 +7,14 @@ const verde   = '#00563F';
 const naranja = '#DFA258';
 
 export default function PanelEjecutivo() {
+  /* ─────────────── state ─────────────── */
   const [raw, setRaw] = useState({ prod: [], desp: [], stock: [] });
   const [loading, setLoading] = useState(true);
 
-  const [zonaSel,    setZonaSel]    = useState('Todas las Zonas');
+  const [zonaSel, setZonaSel]       = useState('Todas las Zonas');
   const [calidadSel, setCalidadSel] = useState('Todas las Calidades');
-  const [fechasMulti, setFechasMulti] = useState([]);
-  const [mesSel, setMesSel] = useState('Todos los Meses');
 
+  /* ─────────────── fetch ─────────────── */
   useEffect(() => {
     (async () => {
       try {
@@ -23,12 +23,12 @@ export default function PanelEjecutivo() {
           .select('team, fecha, zona, calidad, produccion_total, volumen_proyectado');
 
         const { data: desp } = await supabase
-          .from('comparativa_despachos')
-          .select('codigo_destino, largo, calidad, fecha, volumen_planificado, volumen_despachado');
+          .from('comparativa_despachos')         //  ⚠️  sin columna zona
+          .select('codigo_destino, largo, calidad, volumen_planificado, volumen_despachado');
 
         const { data: stock } = await supabase
           .from('vista_dashboard_stock_predios_detallado')
-          .select('zona, calidad, fecha_stock, volumen_total');
+          .select('zona, calidad, volumen_total');
 
         setRaw({ prod: prod || [], desp: desp || [], stock: stock || [] });
       } finally {
@@ -37,74 +37,54 @@ export default function PanelEjecutivo() {
     })();
   }, []);
 
+  /* ─────────────── valores para los selects ─────────────── */
   const zonasDisp = useMemo(() =>
     ['Todas las Zonas', ...new Set(raw.prod.map(r => r.zona).filter(Boolean))], [raw]);
 
   const calidadesDisp = useMemo(() =>
     ['Todas las Calidades', ...new Set(raw.prod.map(r => r.calidad).filter(Boolean))], [raw]);
 
-  const fechasDisp = useMemo(() => {
-    const fechas = raw.prod.map(r => r.fecha).filter(Boolean);
-    return Array.from(new Set(fechas)).sort();
-  }, [raw]);
-
-  const mesesDisp = useMemo(() => {
-    const todasFechas = [
-      ...raw.prod.map(r => r.fecha),
-      ...raw.desp.map(r => r.fecha),
-      ...raw.stock.map(r => r.fecha_stock)
-    ].filter(Boolean);
-    const meses = new Set(todasFechas.map(f => f.slice(0, 7)));
-    return ['Todos los Meses', ...Array.from(meses).sort()];
-  }, [raw]);
-
-  const byFechaMultiple = (row, col) =>
-    fechasMulti.length === 0 || fechasMulti.includes((row[col] ?? '').slice(0,10));
-
-  const byMes = (row, col) =>
-    mesSel === 'Todos los Meses' || (row[col] ?? '').slice(0,7) === mesSel;
-
+  /* ─────────────── filtros ─────────────── */
   const prodFil = useMemo(() => raw.prod.filter(r =>
-    (zonaSel     === 'Todas las Zonas'     || r.zona    === zonaSel) &&
-    (calidadSel  === 'Todas las Calidades' || r.calidad === calidadSel) &&
-    byMes(r,'fecha') &&
-    byFechaMultiple(r,'fecha')
-  ), [raw, zonaSel, calidadSel, fechasMulti, mesSel]);
+    (zonaSel   === 'Todas las Zonas'    || r.zona    === zonaSel) &&
+    (calidadSel=== 'Todas las Calidades'|| r.calidad === calidadSel)
+  ), [raw, zonaSel, calidadSel]);
 
   const despFil = useMemo(() => raw.desp.filter(r =>
-    byMes(r,'fecha')
-  ), [raw, mesSel]);
+    (zonaSel === 'Todas las Zonas' || r.zona === zonaSel)   // r.zona puede no existir
+  ), [raw, zonaSel]);
 
   const stockFil = useMemo(() => raw.stock.filter(r =>
-    (zonaSel === 'Todas las Zonas' || r.zona === zonaSel) &&
-    byMes(r,'fecha_stock') &&
-    byFechaMultiple(r,'fecha_stock')
-  ), [raw, zonaSel, fechasMulti, mesSel]);
+    (zonaSel === 'Todas las Zonas' || r.zona === zonaSel)
+  ), [raw, zonaSel]);
 
+  /* ─────────────── métricas ─────────────── */
   const metricas = useMemo(() => ({
     prodTot : prodFil .reduce((a,r)=>a+ +r.produccion_total ,0),
     despTot : despFil .reduce((a,r)=>a+ +r.volumen_despachado,0),
     stockTot: stockFil.reduce((a,r)=>a+ +r.volumen_total    ,0)
   }), [prodFil, despFil, stockFil]);
 
-  const aggProd = key => {
+  /* helpers de agregación */
+  const aggProd = key =>{
     const acc={}; prodFil.forEach(r=>{
       const k=r[key]??'—'; acc[k]??={real:0,proj:0};
       acc[k].real+=+r.produccion_total; acc[k].proj+=+r.volumen_proyectado;
     }); return acc;
   };
-  const aggDesp = key => {
+  const aggDesp = key =>{
     const acc={}; despFil.forEach(r=>{
       const k=r[key]??'—'; acc[k]??={real:0,plan:0};
       acc[k].real+=+r.volumen_despachado; acc[k].plan+=+r.volumen_planificado;
     }); return acc;
   };
-  const aggStock = key => {
+  const aggStock = key =>{
     const acc={}; stockFil.forEach(r=>{
       const k=r[key]??'—'; acc[k]=(acc[k]||0)+ +r.volumen_total;
     }); return acc;
   };
 
+  /* trazas Plotly */
   const barGroup = (obj,l1,l2,n1,n2, c1=verde,c2=naranja)=>[
     {x:Object.keys(obj), y:Object.values(obj).map(v=>v[l1]), type:'bar', name:n1, marker:{color:c1}},
     {x:Object.keys(obj), y:Object.values(obj).map(v=>v[l2]), type:'bar', name:n2, marker:{color:c2}}
@@ -114,6 +94,7 @@ export default function PanelEjecutivo() {
     {x:Object.keys(obj), y:Object.values(obj).map(v=>v.proj), type:'scatter',mode:'lines+markers',name:'Proyección', line:{color:naranja}}
   ];
 
+  /* gráficos listos */
   const charts = {
     team       : barGroup(aggProd('team')  ,'real','proj','Real','Proyección'),
     fecha      : lineProd(aggProd('fecha')),
@@ -125,6 +106,7 @@ export default function PanelEjecutivo() {
     stockCalid : [{x:Object.keys(aggStock('calidad')), y:Object.values(aggStock('calidad')), type:'bar',marker:{color:verde}}]
   };
 
+  /* pequeños componentes */
   const numberCL = n=>n.toLocaleString('es-CL');
   const Metric = ({title,value})=>(
     <div className="bg-[#DFA258] text-black rounded-md p-4 flex flex-col items-center w-full">
@@ -142,8 +124,10 @@ export default function PanelEjecutivo() {
 
   if (loading) return <p className="text-center mt-10 text-gray-600">Cargando datos…</p>;
 
+  /* ─────────────── UI ─────────────── */
   return (
     <div className="min-h-screen bg-[url('/fondo-forestal-pro.jpg')] bg-cover bg-fixed bg-center p-4">
+      {/* nav */}
       <nav className="flex justify-between items-center bg-white/90 dark:bg-[#1c2e1f]/90 px-4 py-2 rounded shadow mb-4 max-w-6xl mx-auto text-sm font-medium border border-gray-200 dark:border-gray-700">
         <span className="font-semibold flex items-center gap-1 text-[#5E564D] dark:text-white">📊 Panel Ejecutivo Forestal</span>
         <div className="flex gap-4">
@@ -152,27 +136,20 @@ export default function PanelEjecutivo() {
         </div>
       </nav>
 
+      {/* filtros */}
       <div className="max-w-6xl mx-auto mb-4 flex gap-4 flex-wrap items-center">
-        <select value={zonaSel} onChange={e=>setZonaSel(e.target.value)} className="border rounded px-2 py-1 text-sm">
-          {zonasDisp.map(z=><option key={z}>{z}</option>)}
-        </select>
-        <select value={calidadSel} onChange={e=>setCalidadSel(e.target.value)} className="border rounded px-2 py-1 text-sm">
-          {calidadesDisp.map(c=><option key={c}>{c}</option>)}
-        </select>
-        <select value={mesSel} onChange={e=>setMesSel(e.target.value)} className="border rounded px-2 py-1 text-sm">
-          {mesesDisp.map(m => <option key={m}>{m}</option>)}
-        </select>
-        <select multiple value={fechasMulti} onChange={e => setFechasMulti(Array.from(e.target.selectedOptions, o => o.value))} className="border rounded px-2 py-1 text-sm h-[100px]">
-          {fechasDisp.map(f => <option key={f} value={f}>{f}</option>)}
-        </select>
+        <select value={zonaSel}    onChange={e=>setZonaSel(e.target.value)}    className="border rounded px-2 py-1 text-sm">{zonasDisp.map(z=><option key={z}>{z}</option>)}</select>
+        <select value={calidadSel} onChange={e=>setCalidadSel(e.target.value)} className="border rounded px-2 py-1 text-sm">{calidadesDisp.map(c=><option key={c}>{c}</option>)}</select>
       </div>
 
+      {/* métricas */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-6xl mx-auto mb-4">
         <Metric title="Producción Total (m³)" value={metricas.prodTot}/>
         <Metric title="Despachos Totales (m³)" value={metricas.despTot}/>
         <Metric title="Stock en Predios (m³)"  value={metricas.stockTot}/>
       </div>
 
+      {/* gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 max-w-6xl mx-auto">
         <ChartCard title="Prod. vs Proy. – Team"   traces={charts.team}  wide/>
         <ChartCard title="Prod. vs Proy. – Fecha"  traces={charts.fecha} wide/>
