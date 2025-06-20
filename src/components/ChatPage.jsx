@@ -55,7 +55,19 @@ export default function ChatPage() {
     try {
       const res = await axios.post(WEBHOOK_URL, { message: input });
       const raw = res.data.response || res.data;
-      const parsed = Array.isArray(raw) && raw[0]?.output ? raw[0].output : raw;
+      let parsed;
+      if (Array.isArray(raw) && raw[0]?.output) {
+        try {
+          const inner = JSON.parse(raw[0].output); // ⚠️ Aquí decodificamos el string JSON anidado
+          parsed = `${inner.respuesta}\n\n![Gráfico](${inner.chart_url})`;
+        } catch (e) {
+          console.error("Error al parsear el JSON anidado:", e);
+          parsed = raw[0].output;
+        }
+      } else {
+        parsed = raw;
+      }
+          
       const agentReply = { role: 'agent', content: parsed, timestamp: new Date().toISOString() };
       setMessages((prev) => [...prev, agentReply]);
     } catch (error) {
