@@ -71,7 +71,8 @@ export default function ChatPage() {
       const agentReply = { role: 'agent', content: parsed, timestamp: new Date().toISOString() };
       setMessages((prev) => [...prev, agentReply]);
     } catch (error) {
-      const errorReply = { role: 'agent', content: '⚠️ Error al contactar con el agente.', timestamp: new Date().toISOString() };
+      console.error("🧨 Error real:", error.message || error);
+      const errorReply = { role: 'agent', content: `⚠️ Error al contactar con el agente: ${error.message || 'desconocido'}`, timestamp: new Date().toISOString() };
       setMessages((prev) => [...prev, errorReply]);
     }
 
