@@ -18,6 +18,13 @@ export default function ChatPage() {
   };
 
   useEffect(() => {
+    if (!sessionStorage.getItem("sessionId")) {
+      const newId = crypto.randomUUID(); // 🧠 Genera ID único por sesión
+      sessionStorage.setItem("sessionId", newId);
+    }
+  }, []);
+
+  useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
@@ -53,7 +60,11 @@ export default function ChatPage() {
     setLoading(true);
 
     try {
-      const res = await axios.post(WEBHOOK_URL, { message: input });
+      const sessionId = sessionStorage.getItem("sessionId");
+      const res = await axios.post(WEBHOOK_URL, {
+        message: input,
+        sessionId: sessionId
+      });
       const raw = res.data.response || res.data;
       let parsed;
       if (Array.isArray(raw) && raw[0]?.output) {
