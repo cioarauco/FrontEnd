@@ -18,15 +18,27 @@ export default function ChatPage() {
   };
 
   useEffect(() => {
-    const syncSessionId = async () => {
+    const assignSessionId = async () => {
+      const existingId = sessionStorage.getItem("sessionId");
       const { data: { user } } = await supabase.auth.getUser();
-      if (!sessionStorage.getItem("sessionId") && user?.id) {
-        const newSessionId = crypto.randomUUID();
-        sessionStorage.setItem("sessionId", newSessionId);
+
+      if (!existingId || existingId === "undefined") {
+        const newId = crypto.randomUUID();
+        sessionStorage.setItem("sessionId", newId);
+        console.log("🧠 Nuevo sessionId generado:", newId);
+      } else {
+        console.log("✅ SessionId existente:", existingId);
+      }
+
+      // Por si quieres asociarlo con el user.id más adelante
+      if (user) {
+        console.log("🙋 Usuario activo:", user.email);
       }
     };
-    syncSessionId();
+
+    assignSessionId();
   }, []);
+
 
   useEffect(() => {
     scrollToBottom();
@@ -65,6 +77,7 @@ export default function ChatPage() {
 
     try {
       const sessionId = sessionStorage.getItem("sessionId");
+      console.log("➡️ Enviando con sessionId:", sessionId);
       const res = await axios.post(WEBHOOK_URL, {
         message: input,
         sessionId: sessionId
@@ -251,7 +264,18 @@ export default function ChatPage() {
           <a href="/chat" className="text-[#5E564D] dark:text-white hover:underline">🌲 Chat Tronix</a>
           <a href="/dashboards" className="text-[#5E564D] dark:text-white hover:underline">📊 Mis Dashboards</a>
           <a href="/panel-ejecutivo" className="text-[#5E564D] dark:text-white hover:underline">📈 Panel Ejecutivo</a>
-          <a href="/" onClick={() => supabase.auth.signOut()} className="text-[#5E564D] dark:text-red-400 hover:underline">🚪 Cerrar sesión</a>
+          <a href="#"
+    onClick={() => {
+      sessionStorage.removeItem("sessionId");
+      supabase.auth.signOut().then(() => {
+        window.location.reload(); // 🔄 Fuerza recarga después del logout
+      });
+    }}
+    className="text-[#5E564D] dark:text-red-400 hover:underline"
+  >
+    🚪 Cerrar sesión
+  </a>
+
         </div>
       </div>
 
