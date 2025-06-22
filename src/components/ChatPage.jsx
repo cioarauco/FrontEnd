@@ -18,10 +18,14 @@ export default function ChatPage() {
   };
 
   useEffect(() => {
-    if (!sessionStorage.getItem("sessionId")) {
-      const newId = crypto.randomUUID(); // 🧠 Genera ID único por sesión
-      sessionStorage.setItem("sessionId", newId);
-    }
+    const syncSessionId = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!sessionStorage.getItem("sessionId") && user?.id) {
+        const newSessionId = crypto.randomUUID();
+        sessionStorage.setItem("sessionId", newSessionId);
+      }
+    };
+    syncSessionId();
   }, []);
 
   useEffect(() => {
