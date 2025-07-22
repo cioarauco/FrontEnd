@@ -67,6 +67,8 @@ export default function DashboardPage() {
   const [dateTo,   setDateTo]       = useState('');
   const [snack,    setSnack]        = useState('');
   const [preview,  setPreview]      = useState(null);   // url en modal
+  const [refreshKeys, setRefreshKeys] = useState({});
+
 
   /* ────────── fetch dashboards ────────── */
   const fetchDashboards = async () => {
@@ -212,6 +214,7 @@ export default function DashboardPage() {
 
                 {/* iframe */}
                 <iframe
+                  key={refreshKeys[item.id] || item.id}  // 👈 esta es la clave para forzar el remount
                   src={item.url}
                   className="w-full"
                   style={{ height: '400px', border: 'none' }}
@@ -221,6 +224,15 @@ export default function DashboardPage() {
 
                 {/* overlay */}
                 <div className="absolute bottom-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                  <button
+                    onClick={() =>
+                      setRefreshKeys(prev => ({ ...prev, [item.id]: Math.random().toString() }))
+                    }
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-2"
+                    title="Refrescar gráfico"
+                  >
+                    🔄
+                  </button>
                   <a href={item.url} target="_blank" rel="noopener noreferrer" className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full p-2" title="Abrir en nueva pestaña">
                     <LuExternalLink size={16}/>
                   </a>
