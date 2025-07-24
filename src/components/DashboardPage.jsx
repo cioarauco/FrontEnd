@@ -225,11 +225,27 @@ export default function DashboardPage() {
                 {/* overlay */}
                 <div className="absolute bottom-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition">
                   <button
-                    onClick={() =>
-                      setRefreshKeys(prev => ({ ...prev, [item.id]: Math.random().toString() }))
-                    }
+                    onClick={() => {
+                      // Añade ?actualizar=true o &actualizar=true según corresponda
+                      const updatedUrl = item.url.includes("?")
+                        ? item.url + "&actualizar=true"
+                        : item.url + "?actualizar=true";
+
+                       // Forzamos re-mount del iframe con clave nueva y nueva URL
+                      setRefreshKeys(prev => ({
+                        ...prev,
+                        [item.id]: Math.random().toString(),
+                        }));
+
+                      // Actualizamos la URL del gráfico solo para este render
+                      setDashboards(current =>
+                        current.map(d =>
+                          d.id === item.id ? { ...d, url: updatedUrl } : d
+                        )
+                      );
+                    }}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-2"
-                    title="Refrescar gráfico"
+                    title="Actualizar con SQL en tiempo real"
                   >
                     🔄
                   </button>
