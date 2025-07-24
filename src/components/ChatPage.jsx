@@ -3,6 +3,8 @@ import axios from 'axios';
 import { supabase } from '../App';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaUserCircle, FaTree, FaTrashAlt } from 'react-icons/fa';
+import ChartFromSQL from '../components/ChartFromSQL';
+
 
 const WEBHOOK_URL = 'https://n8n-production-993e.up.railway.app/webhook/01103618-3424-4455-bde6-aa8d295157b2';
 
@@ -166,7 +168,7 @@ export default function ChatPage() {
           {iframeMatch ? (
             <>
               <div className="text-sm mt-2" dangerouslySetInnerHTML={{ __html: iframeMatch.cleanedText.replace(/\n/g, '<br/>') }} />
-              <iframe src={iframeMatch.url} className="w-full mt-3 rounded-lg border" style={{ height: '400px' }} allowFullScreen />
+              <ChartFromSQL grafico_id={iframeMatch.grafico_id} />
               {!isUser && (
                 <button
                   onClick={async () => {
