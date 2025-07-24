@@ -224,44 +224,7 @@ export default function ChatPage() {
       )}
       
 
-  // 1. Asegurar que el gráfico existe en la tabla 'graficos'
-  await supabase.from('graficos').upsert({
-    id: grafico_id,
-    created_at: new Date().toISOString()
-  });
-
-  // 2. Asociar el gráfico al usuario en la tabla 'dashboards'
-  const { error } = await supabase.from('dashboards').insert({
-    user_id: user.id,
-    id: grafico_id,
-    titulo,
-    url,
-    fecha: new Date()
-  });
-
-                    if (error) {
-                      alert("❌ Error al guardar gráfico: " + error.message);
-                    } else {
-                      alert("✅ Gráfico guardado en tu dashboard.");
-                    }
-                  }}
-                  className="mt-3 bg-[#DFA258] hover:bg-[#c79046] text-black px-3 py-1 rounded text-xs shadow"
-                >
-                  💾 Guardar gráfico en Mis Dashboards
-                </button>
-              )}
-            </>
-          ) : (
-            <div className="text-sm mt-2">
-              {typeof msg.content === 'string' ? (
-                <div className="prose max-w-full" dangerouslySetInnerHTML={{ __html: msg.content.replace(/\n/g, '<br/>') }} />
-              ) : typeof msg.content === 'object' ? (
-                <pre className="bg-gray-100 p-2 rounded overflow-x-auto text-xs">{JSON.stringify(msg.content, null, 2)}</pre>
-              ) : (
-                msg.content
-              )}
-            </div>
-          )}
+              
 
           {isUser && (
             <button
