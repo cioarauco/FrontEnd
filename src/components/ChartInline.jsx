@@ -1,65 +1,76 @@
+// ChartInline.jsx
 import React from 'react';
-import { Bar, Line } from 'react-chartjs-2';
+import { Line, Bar, Pie } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
-  BarElement,
-  LineElement,
   PointElement,
-  Tooltip,
+  LineElement,
+  BarElement,
+  ArcElement,
   Legend,
-  Title
+  Tooltip,
 } from 'chart.js';
 
 ChartJS.register(
   CategoryScale,
   LinearScale,
-  BarElement,
-  LineElement,
   PointElement,
-  Tooltip,
+  LineElement,
+  BarElement,
+  ArcElement,
   Legend,
-  Title
+  Tooltip
 );
 
 export default function ChartInline({ data }) {
-  if (!data || !data.labels || !data.values || !data.chart_type) return null;
+  if (!data || !data.labels || !data.values) return null;
 
-  const config = {
-    labels: data.labels,
-    datasets: Array.isArray(data.values[0])
-      ? data.values.map((serie, i) => ({
-          label: serie.label || `Serie ${i + 1}`,
-          data: serie.data || [],
+  const isMultiSeries = Array.isArray(data.values) && typeof data.values[0] === 'object';
+
+  const datasets = isMultiSeries
+    ? data.values.map(serie => ({
+        label: serie.name,
+        data: serie.data,
+        fill: false,
+        borderWidth: 2,
+        tension: 0.2,
+      }))
+    : [
+        {
+          label: data.title || 'Serie',
+          data: data.values,
+          fill: false,
           borderWidth: 2,
-          fill: false
-        }))
-      : [
-          {
-            label: data.title,
-            data: data.values,
-            backgroundColor: '#D2C900',
-            borderColor: '#5E564D',
-            borderWidth: 1
-          }
-        ]
+          tension: 0.2,
+        },
+      ];
+
+  const chartData = {
+    labels: data.labels,
+    datasets,
   };
 
   const options = {
     responsive: true,
     plugins: {
       legend: { position: 'top' },
-      title: { display: true, text: data.title || '' }
-    }
+      title: {
+        display: !!data.title,
+        text: data.title,
+      },
+    },
   };
 
-  const chartType = data.chart_type;
-
-  return (
-    <div className="my-4">
-      {chartType === 'bar' && <Bar data={config} options={options} />}
-      {chartType === 'line' && <Line data={config} options={options} />}
-    </div>
-  );
+  switch (data.chart_type) {
+    case 'bar':
+      return <Bar data={chartData} options={options} />;
+    case 'pie':
+      return <Pie data={chartData} options={options} />;
+    case 'multi-line':
+    case 'line':
+    default:
+      return <Line data={chartData} options={options} />;
+  }
 }
