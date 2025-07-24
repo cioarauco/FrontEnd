@@ -227,14 +227,12 @@ export default function DashboardPage() {
                   <button
                     onClick={() => {
                       // Añade ?actualizar=true o &actualizar=true según corresponda
-                      const updatedUrl = item.url.includes("?")
-                        ? item.url + "&actualizar=true"
-                        : item.url + "?actualizar=true";
+                      const updatedUrl = `https://graficos2-production.up.railway.app/?grafico_id=${item.id}&actualizar=true`;
 
                        // Forzamos re-mount del iframe con clave nueva y nueva URL
                       setRefreshKeys(prev => ({
                         ...prev,
-                        [item.id]: Math.random().toString(),
+                        [item.id]: Math.random().toString()
                         }));
 
                       // Actualizamos la URL del gráfico solo para este render
