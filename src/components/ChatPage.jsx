@@ -127,6 +127,7 @@ export default function ChatPage() {
   };
 
   const renderMessage = (msg, index) => {
+    let parsedContent = msg.content;
     // ⛏️ Intentar parsear si viene como string tipo JSON
     if (typeof msg.content === 'string') {
     try {
@@ -148,7 +149,7 @@ export default function ChatPage() {
       : 'bg-[#DFA258] text-black dark:text-white rounded-r-3xl rounded-bl-3xl';
     const icon = isUser ? <FaUserCircle className="text-xl" /> : <FaTree className="text-xl text-[#5E564D]" />;
     const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-    const iframeMatch = typeof msg.content === 'string' ? extractIframe(msg.content) : null;
+    const iframeMatch = typeof parsedContent === 'string' ? extractIframe(parsedContent) : null;
 
     const handleGuardarPregunta = async () => {
       const user = (await supabase.auth.getUser()).data.user;
@@ -221,10 +222,10 @@ export default function ChatPage() {
                 </button>
               )}
             </>
-        ) : typeof msg.content === 'object' && msg.content.sql && msg.content.labels && msg.content.values ? (
+        ) : typeof parsedContent === 'object' && parsedContent.sql && parsedContent.labels && parsedContent.values ? (
           <>
             <div className="text-sm mt-2">{msg.content.respuesta}</div>
-            <ChartInline data={msg.content} />
+            <ChartInline data={parsedContent} />
           </>
       ) : (
         <div className="text-sm mt-2">
