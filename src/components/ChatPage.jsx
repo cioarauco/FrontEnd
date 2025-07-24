@@ -135,6 +135,13 @@ export default function ChatPage() {
     // No hacer nada si no es JSON válido
     }
   }
+  // 🧹 Si viene anidado (ej: OpenAI tools), lo aplanamos
+  if (
+    msg.content?.response_0?.chart_payload &&
+    msg.content.response_0.chart_payload.labels
+  ) {
+    msg.content = msg.content.response_0.chart_payload;
+  }
     const isUser = msg.role === 'user';
     const baseStyle = isUser
       ? 'bg-[#D2C900] text-black rounded-l-3xl rounded-br-3xl'
