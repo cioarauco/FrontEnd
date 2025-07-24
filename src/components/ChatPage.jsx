@@ -4,6 +4,8 @@ import { supabase } from '../App';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaUserCircle, FaTree, FaTrashAlt } from 'react-icons/fa';
 import ChartFromSQL from '../components/ChartFromSQL';
+import ChartInline from '../components/ChartInline';
+
 
 
 const WEBHOOK_URL = 'https://n8n-production-993e.up.railway.app/webhook/01103618-3424-4455-bde6-aa8d295157b2';
@@ -172,17 +174,55 @@ export default function ChatPage() {
               {!isUser && (
                 <button
                   onClick={async () => {
-  const user = (await supabase.auth.getUser()).data.user;
-  if (!user) {
-    alert("Debes iniciar sesión para guardar gráficos.");
-    return;
-  }
-
-  const titulo = prompt("🔖 Título del gráfico:", "Nuevo gráfico");
-  if (!titulo) return;
-
-  const grafico_id = iframeMatch.grafico_id;
-  const url = iframeMatch.url;
+                    const user = (await supabase.auth.getUser()).data.user;
+                    if (!user) {
+                      alert("Debes iniciar sesión para guardar gráficos.");
+                      return;
+                    }
+                    const titulo = prompt("🔖 Título del gráfico:", "Nuevo gráfico");
+                    if (!titulo) return;
+                    const grafico_id = iframeMatch.grafico_id;
+                    const url = iframeMatch.url;
+                    await supabase.from('graficos').upsert({
+                      id: grafico_id,
+                      created_at: new Date().toISOString()
+                    });
+                    const { error } = await supabase.from('dashboards').insert({
+                      user_id: user.id,
+                      id: grafico_id,
+                      titulo,
+                      url,
+                      fecha: new Date()
+                    });
+                    if (error) {
+                      alert("❌ Error al guardar gráfico: " + error.message);
+                    } else {
+                      alert("✅ Gráfico guardado en tu dashboard.");
+                    }
+                  }}
+                  className="mt-3 bg-[#DFA258] hover:bg-[#c79046] text-black px-3 py-1 rounded text-xs shadow"
+                >
+                  💾 Guardar gráfico en Mis Dashboards
+                </button>
+              )}
+            </>
+        ) : typeof msg.content === 'object' && msg.content.sql && msg.content.labels && msg.content.values ? (
+          <>
+            <div className="text-sm mt-2">{msg.content.respuesta}</div>
+            <ChartInline data={msg.content} />
+          </>
+      ) : (
+        <div className="text-sm mt-2">
+          {typeof msg.content === 'string' ? (
+            <div className="prose max-w-full" dangerouslySetInnerHTML={{ __html: msg.content.replace(/\n/g, '<br/>') }} />
+          ) : typeof msg.content === 'object' ? (
+            <pre className="bg-gray-100 p-2 rounded overflow-x-auto text-xs">{JSON.stringify(msg.content, null, 2)}</pre>
+          ) : (
+            msg.content
+          )}
+        </div>
+      )}
+      
 
   // 1. Asegurar que el gráfico existe en la tabla 'graficos'
   await supabase.from('graficos').upsert({
