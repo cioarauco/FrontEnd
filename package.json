@@ -19,6 +19,8 @@
     "rehype-sanitize": "^5.0.1",
     "react-plotly.js": "^2.6.0",
     "plotly.js": "^2.32.0",
+    "chart.js": "^4.4.1",
+    "react-chartjs-2": "^5.2.0",
     "lucide-react": "^0.517.0"
   },
   "devDependencies": {
