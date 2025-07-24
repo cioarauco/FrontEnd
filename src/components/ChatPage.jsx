@@ -127,6 +127,14 @@ export default function ChatPage() {
   };
 
   const renderMessage = (msg, index) => {
+    // ⛏️ Intentar parsear si viene como string tipo JSON
+    if (typeof msg.content === 'string') {
+    try {
+      msg.content = JSON.parse(msg.content);
+      } catch (_) {
+    // No hacer nada si no es JSON válido
+    }
+  }
     const isUser = msg.role === 'user';
     const baseStyle = isUser
       ? 'bg-[#D2C900] text-black rounded-l-3xl rounded-br-3xl'
