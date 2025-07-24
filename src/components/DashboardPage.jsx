@@ -215,7 +215,7 @@ export default function DashboardPage() {
                 {/* iframe */}
                 <iframe
                   key={refreshKeys[item.id] || item.id}  // 👈 esta es la clave para forzar el remount
-                  src={item.url}
+                  src={`https://graficos2-production.up.railway.app/?grafico_id=${item.id}${refreshKeys[item.id] ? '&actualizar=true' : ''}`}
                   className="w-full"
                   style={{ height: '400px', border: 'none' }}
                   allowFullScreen
