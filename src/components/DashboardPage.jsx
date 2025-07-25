@@ -103,18 +103,23 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {graficos.map((grafico) => (
-          <div key={grafico.id} className="bg-white p-4 rounded-lg shadow-md">
+          <div key={grafico.id} className="bg-white p-4 rounded-lg shadow-md h-[400px]">
             <h3 className="text-lg font-semibold mb-2">{grafico.title}</h3>
 
             {grafico.chart_type === 'line' && (
               <Line
                 data={{
                   labels: grafico.labels,
-                  datasets: grafico.values.map((serie) => ({
+                  datasets: grafico.values.map((serie, idx) => ({
                     label: serie.label,
                     data: serie.data,
+                    borderColor: `rgba(${100 + idx * 50}, ${100 + idx * 30}, ${200 - idx * 30}, 1)`,
+                    backgroundColor: `rgba(${100 + idx * 50}, ${100 + idx * 30}, ${200 - idx * 30}, 0.5)`,
+                    fill: false,
+                    tension: 0.3,
                   })),
                 }}
+                options={{ responsive: true, maintainAspectRatio: false }}
               />
             )}
 
@@ -125,8 +130,10 @@ export default function DashboardPage() {
                   datasets: grafico.values.map((serie) => ({
                     label: serie.label,
                     data: serie.data,
+                    backgroundColor: `rgba(${150 + idx * 20}, ${80 + idx * 40}, ${150 - idx * 30}, 0.7)`,
                   })),
                 }}
+                options={{ responsive: true, maintainAspectRatio: false }}
               />
             )}
 
