@@ -199,6 +199,12 @@ export default function ChatPage() {
               )}
               {/* Gráfico inline */}
               <ChartInline data={parsedContent} />
+              <button
+                onClick={() => guardarGraficoEnSupabase(parsedContent)}
+                className="mt-3 bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs shadow"
+              >
+                💾 Guardar gráfico en Supabase
+              </button>
             </>
           ) : (
             <div className="text-sm mt-2">
@@ -248,7 +254,21 @@ export default function ChatPage() {
       </motion.div>
     );
   };
+  async function guardarGraficoEnSupabase(grafico) {
+  const { data, error } = await supabase.from('graficos').insert({
+    title: grafico.title,
+    chart_type: grafico.chart_type,
+    labels: grafico.labels,
+    values: grafico.values,
+    sql: grafico.sql
+  });
 
+  if (error) {
+    alert('Error guardando gráfico: ' + error.message);
+  } else {
+    alert('Gráfico guardado correctamente.');
+  }
+}
   /* --------------------------------------------------
    *  🌳  UI PRINCIPAL
    * -------------------------------------------------- */
@@ -354,3 +374,4 @@ export default function ChatPage() {
     </div>
   );
 }
+
