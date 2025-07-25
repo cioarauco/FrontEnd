@@ -24,17 +24,28 @@ export default function DashboardPage() {
   }, []);
 
   const cargarDashboard = async () => {
-    const { data, error } = await supabase
-      .from('dashboard')
-      .select('id, graficos(*)');
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    if (error) {
-      console.error(error);
-    } else {
-      setGraficos(data.map((d) => d.graficos));
-    }
+  if (!user) {
     setLoading(false);
-  };
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from('dashboard')
+    .select('id, graficos(*)')
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error(error);
+  } else {
+    setGraficos(data.map((d) => d.graficos));
+  }
+
+  setLoading(false);
+};
 
   const eliminarGrafico = async (id) => {
     if (!window.confirm('¿Eliminar este gráfico del dashboard?')) return;
