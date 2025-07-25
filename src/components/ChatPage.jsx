@@ -200,10 +200,27 @@ export default function ChatPage() {
               {/* Gráfico inline */}
               <ChartInline data={parsedContent} />
               <button
-                onClick={() => guardarGraficoEnSupabase(parsedContent)}
-                className="mt-3 bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs shadow"
+                onClick={async () => {
+                  const { data, error } = await supabase.from('graficos').insert({
+                    title: parsedContent.title,
+                    chart_type: parsedContent.chart_type,
+                    labels: parsedContent.labels,
+                    values: parsedContent.values,
+                    sql: parsedContent.sql,
+                  }).select('id').single();
+
+                  if (error) {
+                    alert('Error guardando gráfico: ' + error.message);
+                    return;
+                  }
+
+                  alert('Gráfico guardado en Supabase.');
+
+                  guardarGraficoEnDashboard(data.id);
+               }}
+                className="mt-3 bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs shadow"  
               >
-                💾 Guardar gráfico en Supabase
+                💾 Guardar gráfico en mis Dashboards
               </button>
             </>
           ) : (
@@ -269,6 +286,28 @@ export default function ChatPage() {
     alert('Gráfico guardado correctamente.');
   }
 }
+  const guardarGraficoEnDashboard = async (graficoId) => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    alert('Debes iniciar sesión para guardar en el dashboard.');
+    return;
+  }
+
+  const { error } = await supabase.from('dashboard').insert({
+    grafico_id: graficoId,
+    user_id: user.id,
+  });
+
+  if (error) {
+    alert('Error guardando en dashboard: ' + error.message);
+  } else {
+    alert('Gráfico añadido al dashboard correctamente.');
+  }
+};
+
   /* --------------------------------------------------
    *  🌳  UI PRINCIPAL
    * -------------------------------------------------- */
