@@ -6,36 +6,37 @@ import { FaUserCircle, FaTree, FaTrashAlt } from 'react-icons/fa';
 import ChartFromSQL from '../components/ChartFromSQL';
 import ChartInline from '../components/ChartInline';
 
-// URL del webhook de tu agente
-const WEBHOOK_URL = 'https://n8n-production-993e.up.railway.app/webhook/01103618-3424-4455-bde6-aa8d295157b2';
+// 🌐 ENDPOINT DEL AGENTE
+const WEBHOOK_URL =
+  'https://n8n-production-993e.up.railway.app/webhook/01103618-3424-4455-bde6-aa8d295157b2';
 
 export default function ChatPage() {
-  /* ──────────────────────── State & refs ─────────────────────── */
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [frequentQuestions, setFrequentQuestions] = useState([]);
   const chatEndRef = useRef(null);
 
-  /* ─────────────────────── Helpers ───────────────────────────── */
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  /* ─────────────────────── Efectos ───────────────────────────── */
+  /* --------------------------------------------------
+   *  🔄  INIT – SESSION ID & PREGUNTAS FRECUENTES
+   * -------------------------------------------------- */
   useEffect(() => {
     if (!sessionStorage.getItem('sessionId')) {
-      const newId = crypto.randomUUID();
-      sessionStorage.setItem('sessionId', newId);
+      sessionStorage.setItem('sessionId', crypto.randomUUID());
     }
   }, []);
 
   useEffect(scrollToBottom, [messages]);
 
-  /* Preguntas frecuentes guardadas por el usuario */
   const fetchFrequentQuestions = async () => {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
 
     const { data, error } = await supabase
       .from('preguntas_frecuentes')
@@ -48,143 +49,165 @@ export default function ChatPage() {
 
   useEffect(fetchFrequentQuestions, []);
 
-  /* ─────────────────────── Enviar mensaje ────────────────────── */
+  /* --------------------------------------------------
+   *  📤  ENVIAR MENSAJE AL AGENTE
+   * -------------------------------------------------- */
   const handleSend = async () => {
     if (!input.trim()) return;
 
-    const newUserMessage = { role: 'user', content: input, timestamp: new Date().toISOString() };
-    setMessages(prev => [...prev, newUserMessage]);
+    const newUserMsg = {
+      role: 'user',
+      content: input,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, newUserMsg]);
     setLoading(true);
 
     try {
-      const sessionId = sessionStorage.getItem('sessionId');
-      const res = await axios.post(WEBHOOK_URL, { message: input, sessionId });
-      const raw = res.data.response || res.data;
+      const { data: raw } = await axios.post(WEBHOOK_URL, {
+        message: input,
+        sessionId: sessionStorage.getItem('sessionId'),
+      });
 
-      let parsed;
-      // Caso: OpenAI tools devuelve array con { output }
-      if (Array.isArray(raw) && raw[0]?.output) {
-        parsed = raw[0].output; // dejamos tal cual; renderMessage se encargará de parsear
-      } else {
-        parsed = raw;
+      // 🔍 Algunos n8n workflows devuelven { response: ... }
+      const agentRaw = raw.response ?? raw;
+
+      let parsed = agentRaw;
+
+      // Si viene como array con .output (OpenAI tools) → tomar .output
+      if (Array.isArray(agentRaw) && agentRaw[0]?.output) {
+        parsed = agentRaw[0].output;
       }
 
-      const agentReply = { role: 'agent', content: parsed, timestamp: new Date().toISOString() };
-      setMessages(prev => [...prev, agentReply]);
-    } catch (error) {
-      const errMsg = `⚠️ Error al contactar con el agente: ${error.message || 'desconocido'}`;
-      setMessages(prev => [...prev, { role: 'agent', content: errMsg, timestamp: new Date().toISOString() }]);
+      const agentMsg = {
+        role: 'agent',
+        content: parsed,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, agentMsg]);
+    } catch (err) {
+      const errorMsg = {
+        role: 'agent',
+        content: `⚠️ Error al contactar con el agente: ${err.message}`,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
     }
 
     setInput('');
     setLoading(false);
   };
 
-  const handleKeyDown = e => {
+  const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
 
-  /* ─────────────────────── Utilidades varias ─────────────────── */
-  const extractIframe = text => {
-    const match = text.match(/!\[.*?\]\((https?:\/\/[^\s)]+\?grafico_id=([a-zA-Z0-9-]+))\)/);
-    return match
-      ? { url: match[1], grafico_id: match[2], cleanedText: text.replace(match[0], '').trim() }
+  /* --------------------------------------------------
+   *  🖼️  PARSE & RENDER DE CADA MENSAJE
+   * -------------------------------------------------- */
+  const extractIframe = (text) => {
+    const m = text.match(
+      /!\[.*?\]\((https?:\/\/[^\s)]+\?grafico_id=([a-zA-Z0-9-]+))\)/,
+    );
+    return m
+      ? { url: m[1], grafico_id: m[2], cleanedText: text.replace(m[0], '').trim() }
       : null;
   };
 
-  const handleEliminarPregunta = async id => {
-    if (!confirm('¿Eliminar esta pregunta de tus favoritos?')) return;
-    const { error } = await supabase.from('preguntas_frecuentes').delete().eq('id', id);
-    if (!error) fetchFrequentQuestions();
-  };
-
-  /* ─────────────────────── Render de cada mensaje ─────────────── */
-  const renderMessage = (msg, index) => {
-    // 1. Normalizar contenido
+  const renderMessage = (msg, idx) => {
+    // 1️⃣ Normalizamos el contenido → parsedContent
     let parsedContent = msg.content;
 
+    // 1.a) Si viene como string, ¿contiene JSON embebido?
     if (typeof parsedContent === 'string') {
-      const jsonMatch = parsedContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
+      const match = parsedContent.match(/\{[\s\S]*\}/);
+      if (match) {
         try {
-          parsedContent = JSON.parse(jsonMatch[0]);
-        } catch {/* se mantiene string */}
+          parsedContent = JSON.parse(match[0]);
+        } catch (_) {/* ignora si no es JSON válido */}
       }
     }
 
-    // Flatten cuando viene como response_0.chart_payload
-    if (parsedContent?.response_0?.chart_payload?.labels) {
+    // 1.b) Si viene como objeto anidado (response_0.chart_payload)
+    if (
+      parsedContent?.response_0?.chart_payload?.labels &&
+      parsedContent.response_0.chart_payload.labels.length
+    ) {
       parsedContent = parsedContent.response_0.chart_payload;
     }
 
+    /* --------------------------------------------------
+     *  🎨  DECIDIR QUÉ COMPONENTE USAR
+     * -------------------------------------------------- */
+    const asIframe =
+      typeof parsedContent === 'string' ? extractIframe(parsedContent) : null;
+
+    const isChartPayload =
+      parsedContent &&
+      typeof parsedContent === 'object' &&
+      parsedContent.labels &&
+      parsedContent.values;
+
+    /* --------------------------------------------------
+     *  🖌️  ESTILOS & METADATOS COMUNES
+     * -------------------------------------------------- */
     const isUser = msg.role === 'user';
-    const baseStyle = isUser
+    const wrapperCls = isUser
       ? 'bg-[#D2C900] text-black rounded-l-3xl rounded-br-3xl'
       : 'bg-[#DFA258] text-black dark:text-white rounded-r-3xl rounded-bl-3xl';
-    const icon = isUser ? <FaUserCircle className="text-xl" /> : <FaTree className="text-xl text-[#5E564D]" />;
-    const time = msg.timestamp
-      ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      : '';
+    const icon = isUser ? (
+      <FaUserCircle className="text-xl" />
+    ) : (
+      <FaTree className="text-xl text-[#5E564D]" />
+    );
 
-    const iframeMatch =
-      typeof parsedContent === 'string'
-        ? parsedContent.match(/!\[.*?\]\((https?:\/\/[^\s)]+\?grafico_id=([a-zA-Z0-9-]+))\)/)
-        : null;
-
-    const handleGuardarPregunta = async () => {
-      const user = (await supabase.auth.getUser()).data.user;
-      if (!user) return alert('Debes iniciar sesión para guardar la pregunta.');
-      const { error } = await supabase.from('preguntas_frecuentes').insert({
-        user_id: user.id,
-        pregunta: msg.content,
-        fecha_creacion: new Date(),
-      });
-      if (error) alert('❌ Error al guardar: ' + error.message);
-      else fetchFrequentQuestions();
-    };
-
+    /* --------------------------------------------------
+     *  📦  RENDER
+     * -------------------------------------------------- */
     return (
       <motion.div
-        key={index}
+        key={idx}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
       >
-        <div className={`w-full max-w-2xl p-4 shadow-lg ${baseStyle}`}>
-          {/* Cabecera */}
+        <div className={`w-full max-w-2xl p-4 shadow-lg ${wrapperCls}`}>
           <div className="flex items-center gap-2 mb-1">
             {icon}
             <span className="font-semibold">{isUser ? 'Tú' : 'Tronix'}</span>
           </div>
 
-          {/* Contenido */}
-          {iframeMatch ? (
-            // ── Gráfico por URL externa ──
+          {/* ----- 📈 Chart INLINE / Iframe / Texto ----- */}
+          {asIframe ? (
             <>
               <div
                 className="text-sm mt-2"
                 dangerouslySetInnerHTML={{
-                  __html: parsedContent.replace(iframeMatch[0], '').replace(/\n/g, '<br/>'),
+                  __html: asIframe.cleanedText.replace(/\n/g, '<br/>'),
                 }}
               />
-              <ChartFromSQL grafico_id={iframeMatch[2]} />
+              <ChartFromSQL grafico_id={asIframe.grafico_id} />
             </>
-          ) : typeof parsedContent === 'object' && parsedContent.sql && parsedContent.labels && parsedContent.values ? (
-            // ── Payload JSON inline para ChartInline ──
+          ) : isChartPayload ? (
             <>
-              <div className="text-sm mt-2">{parsedContent.respuesta}</div>
+              {/* Explicación textual */}
+              {parsedContent.respuesta && (
+                <div className="text-sm mt-2">{parsedContent.respuesta}</div>
+              )}
+              {/* Gráfico inline */}
               <ChartInline data={parsedContent} />
             </>
           ) : (
-            // ── Texto plano / JSON sin reconocer ──
             <div className="text-sm mt-2">
               {typeof parsedContent === 'string' ? (
                 <div
                   className="prose max-w-full"
-                  dangerouslySetInnerHTML={{ __html: parsedContent.replace(/\n/g, '<br/>') }}
+                  dangerouslySetInnerHTML={{
+                    __html: parsedContent.replace(/\n/g, '<br/>'),
+                  }}
                 />
               ) : (
                 <pre className="bg-gray-100 p-2 rounded overflow-x-auto text-xs">
@@ -194,27 +217,44 @@ export default function ChatPage() {
             </div>
           )}
 
-          {/* Botón guardar pregunta (solo usuario) */}
+          {/* ----- ⭐ Acciones ----- */}
           {isUser && (
             <button
-              onClick={handleGuardarPregunta}
+              onClick={async () => {
+                const {
+                  data: { user },
+                } = await supabase.auth.getUser();
+                if (!user) return alert('Debes iniciar sesión para guardar.');
+                await supabase.from('preguntas_frecuentes').insert({
+                  user_id: user.id,
+                  pregunta: msg.content,
+                  fecha_creacion: new Date(),
+                });
+                fetchFrequentQuestions();
+              }}
               className="mt-3 bg-[#D2C900] hover:bg-[#bcae00] text-black px-3 py-1 rounded text-xs shadow"
             >
               💾 Guardar como favorita
             </button>
           )}
 
-          {/* Hora */}
-          <div className="text-xs text-right mt-2 text-gray-600 dark:text-gray-300">{time}</div>
+          <div className="text-xs text-right mt-2 text-gray-600 dark:text-gray-300">
+            {new Date(msg.timestamp).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </div>
         </div>
       </motion.div>
     );
   };
 
-  /* ─────────────────────── Render principal ─────────────────── */
+  /* --------------------------------------------------
+   *  🌳  UI PRINCIPAL
+   * -------------------------------------------------- */
   return (
     <div className="min-h-screen bg-[url('/camioncito.png')] bg-cover bg-fixed bg-bottom p-6">
-      {/* Barra superior */}
+      {/* HEADER */}
       <div className="flex justify-between items-center bg-white/90 dark:bg-[#1c2e1f]/90 px-6 py-3 rounded-xl shadow mb-6 max-w-4xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <FaTree className="text-2xl text-[#D2C900]" />
@@ -242,7 +282,7 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Card principal */}
+      {/* CONTENEDOR PRINCIPAL */}
       <div className="bg-white/90 dark:bg-[#1c2e1f]/90 p-6 rounded-xl shadow-lg max-w-4xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
         {/* Preguntas frecuentes */}
         <div className="mb-4">
@@ -251,16 +291,25 @@ export default function ChatPage() {
           </h3>
           {frequentQuestions.length ? (
             <div className="flex flex-wrap gap-2">
-              {frequentQuestions.map(q => (
+              {frequentQuestions.map((q) => (
                 <div
                   key={q.id}
                   className="flex items-center bg-[#FDF3BF] text-[#5E564D] px-3 py-1 rounded text-xs font-medium"
                 >
-                  <button onClick={() => setInput(q.pregunta)} className="hover:underline mr-2">
+                  <button
+                    onClick={() => setInput(q.pregunta)}
+                    className="hover:underline mr-2"
+                  >
                     {q.pregunta}
                   </button>
                   <button
-                    onClick={() => handleEliminarPregunta(q.id)}
+                    onClick={() =>
+                      supabase
+                        .from('preguntas_frecuentes')
+                        .delete()
+                        .eq('id', q.id)
+                        .then(fetchFrequentQuestions)
+                    }
                     className="text-red-500 hover:text-red-700 ml-1"
                   >
                     <FaTrashAlt className="text-xs" />
@@ -269,14 +318,20 @@ export default function ChatPage() {
               ))}
             </div>
           ) : (
-            <p className="text-xs text-gray-500 dark:text-gray-400">No tienes preguntas guardadas todavía.</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              No tienes preguntas guardadas todavía.
+            </p>
           )}
         </div>
 
-        {/* Timeline de mensajes */}
+        {/* Chat */}
         <div className="space-y-4 mb-4">
           <AnimatePresence>{messages.map(renderMessage)}</AnimatePresence>
-          {loading && <div className="text-center text-sm text-gray-500 dark:text-gray-400">Tronix está pensando...</div>}
+          {loading && (
+            <div className="text-center text-sm text-gray-500 dark:text-gray-400">
+              Tronix está pensando...
+            </div>
+          )}
           <div ref={chatEndRef} />
         </div>
 
@@ -284,7 +339,7 @@ export default function ChatPage() {
         <textarea
           className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#D2C900] dark:focus:ring-[#E5D9AB] focus:outline-none transition-all text-sm dark:bg-[#2e2b26] dark:text-white"
           value={input}
-          onChange={e => setInput(e.target.value)}
+          onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Escribe tu mensaje... (Shift+Enter para salto de línea)"
           rows={3}
