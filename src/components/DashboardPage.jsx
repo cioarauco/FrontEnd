@@ -1,164 +1,350 @@
-// src/pages/DashboardPage.jsx
-import React, { useEffect, useState } from 'react';
-import { supabase } from '../App';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../config/supabase'; // Ajusta la ruta según tu estructura
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement, PointElement, LineElement } from 'chart.js';
+import { Bar, Pie, Line } from 'react-chartjs-2';
 
-// Chart.js (auto‑register todos los elementos)
-import { Line, Bar } from 'react-chartjs-2';
-import 'chart.js/auto';
+// Registrar componentes de Chart.js
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+  PointElement,
+  LineElement
+);
 
-/* ───────────────────────── helpers ───────────────────────── */
-const cls = (...c) => c.filter(Boolean).join(' ');
+const DashboardPage = () => {
+  const [dashboards, setDashboards] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [refreshingChart, setRefreshingChart] = useState(null);
 
-export default function DashboardPage() {
-  const [graficos, setGraficos] = useState([]);
-  const [cargando, setCargando] = useState(true);
-  const [actualizando, setActualizando] = useState(null); // id del gráfico que se está refrescando
+  // Función para obtener los dashboards del usuario
+  const fetchDashboards = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-  /* ───────────────────── carga inicial ───────────────────── */
-  useEffect(() => {
-    (async () => {
-      // 1️⃣ Obtenemos dashboards del usuario + gráfico asociado
+      // Obtener el usuario actual
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        throw new Error('Error al obtener usuario: ' + userError.message);
+      }
+
+      if (!user) {
+        throw new Error('Usuario no autenticado');
+      }
+
+      // Consulta para obtener dashboards con sus gráficos
       const { data, error } = await supabase
         .from('dashboard')
         .select(`
           id,
           created_at,
-          graficos:grafico_id (
-            id, title, chart_type, labels, values, sql
+          user_id,
+          graficos (
+            id,
+            title,
+            chart_type,
+            values,
+            labels,
+            sql,
+            created_at
           )
         `)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('[DashboardPage] Error al listar dashboards:', error);
-        setCargando(false);
-        return;
+        throw new Error('Error al obtener dashboards: ' + error.message);
       }
 
-      // 2️⃣ Convertimos a un array plano de gráficos
-      const limpios = data
-        .filter(d => d.graficos)
-        .map(d => {
-          const g = d.graficos;
-          return {
-            ...g,
-            dashboard_id: d.id,
-            created_at: d.created_at,
-            // Garantizamos que labels/values sean arrays
-            labels: Array.isArray(g.labels) ? g.labels
-                    : JSON.parse(g.labels ?? '[]'),
-            values: Array.isArray(g.values) ? g.values
-                    : JSON.parse(g.values ?? '[]')
-          };
-        });
+      console.log('Dashboards obtenidos:', data); // Para debugging
+      setDashboards(data || []);
+    } catch (err) {
+      console.error('Error en fetchDashboards:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      setGraficos(limpios);
-      setCargando(false);
-    })();
-  }, []);
+  // Función para actualizar un gráfico ejecutando su SQL
+  const refreshChart = async (chartId, sql) => {
+    try {
+      setRefreshingChart(chartId);
+      
+      // Ejecutar la query SQL
+      const { data, error } = await supabase.rpc('execute_sql', { query: sql });
+      
+      if (error) {
+        throw new Error('Error al ejecutar SQL: ' + error.message);
+      }
 
-  /* ─────────────── refrescar un gráfico vía SQL ───────────── */
-  async function handleUpdate(grafico) {
-    if (!grafico.sql) {
-      alert('Este gráfico no tiene SQL asociada para actualizar.');
+      // Actualizar el gráfico en la base de datos
+      const processedData = processChartData(data);
+      
+      const { error: updateError } = await supabase
+        .from('graficos')
+        .update({
+          values: processedData.values,
+          labels: processedData.labels
+        })
+        .eq('id', chartId);
+
+      if (updateError) {
+        throw new Error('Error al actualizar gráfico: ' + updateError.message);
+      }
+
+      // Refrescar los dashboards
+      await fetchDashboards();
+      
+    } catch (err) {
+      console.error('Error al actualizar gráfico:', err);
+      alert('Error al actualizar gráfico: ' + err.message);
+    } finally {
+      setRefreshingChart(null);
+    }
+  };
+
+  // Función para procesar datos del SQL (ajusta según tu lógica)
+  const processChartData = (data) => {
+    if (!data || data.length === 0) {
+      return { values: [], labels: [] };
+    }
+
+    // Asumiendo que el primer objeto tiene las claves que necesitamos
+    const firstRow = data[0];
+    const keys = Object.keys(firstRow);
+    
+    // Si hay exactamente 2 columnas, usar una como labels y otra como values
+    if (keys.length === 2) {
+      return {
+        labels: data.map(row => row[keys[0]]),
+        values: data.map(row => row[keys[1]])
+      };
+    }
+    
+    // Si hay más columnas, usar la primera como label y el resto como values
+    const labelKey = keys[0];
+    const valueKeys = keys.slice(1);
+    
+    return {
+      labels: data.map(row => row[labelKey]),
+      values: valueKeys.map(key => data.map(row => row[key]))
+    };
+  };
+
+  // Función para renderizar un gráfico
+  const renderChart = (grafico) => {
+    if (!grafico.values || !grafico.labels) {
+      return <div className="text-gray-500">No hay datos para mostrar</div>;
+    }
+
+    let chartData;
+    let values = grafico.values;
+    let labels = grafico.labels;
+
+    // Parsear si los datos están como string JSON
+    if (typeof values === 'string') {
+      try {
+        values = JSON.parse(values);
+      } catch (e) {
+        console.error('Error parsing values:', e);
+        return <div className="text-red-500">Error en los datos del gráfico</div>;
+      }
+    }
+
+    if (typeof labels === 'string') {
+      try {
+        labels = JSON.parse(labels);
+      } catch (e) {
+        console.error('Error parsing labels:', e);
+        return <div className="text-red-500">Error en las etiquetas del gráfico</div>;
+      }
+    }
+
+    // Configurar datos según el tipo de gráfico
+    switch (grafico.chart_type) {
+      case 'bar':
+        chartData = {
+          labels: labels,
+          datasets: [{
+            label: 'Datos',
+            data: values,
+            backgroundColor: 'rgba(54, 162, 235, 0.5)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+          }]
+        };
+        return <Bar data={chartData} options={{ responsive: true }} />;
+
+      case 'pie':
+        chartData = {
+          labels: labels,
+          datasets: [{
+            data: values,
+            backgroundColor: [
+              'rgba(255, 99, 132, 0.5)',
+              'rgba(54, 162, 235, 0.5)',
+              'rgba(255, 205, 86, 0.5)',
+              'rgba(75, 192, 192, 0.5)',
+              'rgba(153, 102, 255, 0.5)',
+            ],
+            borderColor: [
+              'rgba(255, 99, 132, 1)',
+              'rgba(54, 162, 235, 1)',
+              'rgba(255, 205, 86, 1)',
+              'rgba(75, 192, 192, 1)',
+              'rgba(153, 102, 255, 1)',
+            ],
+            borderWidth: 1
+          }]
+        };
+        return <Pie data={chartData} options={{ responsive: true }} />;
+
+      case 'line':
+        chartData = {
+          labels: labels,
+          datasets: [{
+            label: 'Datos',
+            data: values,
+            fill: false,
+            borderColor: 'rgba(75, 192, 192, 1)',
+            tension: 0.1
+          }]
+        };
+        return <Line data={chartData} options={{ responsive: true }} />;
+
+      default:
+        return <div className="text-gray-500">Tipo de gráfico no soportado: {grafico.chart_type}</div>;
+    }
+  };
+
+  // Función para eliminar un dashboard
+  const deleteDashboard = async (dashboardId) => {
+    if (!confirm('¿Estás seguro de que quieres eliminar este gráfico del dashboard?')) {
       return;
     }
-    setActualizando(grafico.id);
 
     try {
-      // Llama a tu RPC "run_query" (ajusta el nombre si difiere)
-      const { data, error } = await supabase
-        .rpc('run_query', { sql: grafico.sql });
+      const { error } = await supabase
+        .from('dashboard')
+        .delete()
+        .eq('id', dashboardId);
 
-      if (error) throw error;
-      if (!data?.length) {
-        alert('La consulta no devolvió resultados.');
-        return;
+      if (error) {
+        throw new Error('Error al eliminar dashboard: ' + error.message);
       }
 
-      // ⚠️ Aquí asumo que tu RPC devuelve un objeto con
-      // { labels: [...], values: [...] } del mismo formato original.
-      // Ajusta el mapeo si tu función responde distinto.
-      const newLabels = data[0].labels || [];
-      const newValues = data[0].values || [];
-
-      setGraficos(prev =>
-        prev.map(g =>
-          g.id === grafico.id
-            ? { ...g, labels: newLabels, values: newValues }
-            : g
-        )
-      );
+      // Refrescar la lista
+      await fetchDashboards();
     } catch (err) {
-      console.error('[DashboardPage] Error al actualizar gráfico:', err);
-      alert('No se pudo actualizar el gráfico. Revisa la consola.');
-    } finally {
-      setActualizando(null);
+      console.error('Error al eliminar dashboard:', err);
+      alert('Error al eliminar dashboard: ' + err.message);
     }
-  }
+  };
 
-  /* ───────────────────────── render ───────────────────────── */
-  if (cargando) {
+  useEffect(() => {
+    fetchDashboards();
+  }, []);
+
+  if (loading) {
     return (
-      <div className="p-6 min-h-screen bg-gray-100 flex items-center justify-center">
-        ⏳ Cargando dashboards…
+      <div className="flex justify-center items-center h-64">
+        <div className="text-lg">Cargando dashboards...</div>
       </div>
     );
   }
 
-  if (!graficos.length) {
+  if (error) {
     return (
-      <div className="p-6 min-h-screen bg-gray-100 flex items-center justify-center">
-        Aún no tienes gráficos guardados.
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4 m-4">
+        <div className="text-red-800">
+          <strong>Error:</strong> {error}
+        </div>
+        <button 
+          onClick={fetchDashboards}
+          className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+        >
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
+  if (dashboards.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-gray-500 text-lg">
+          No tienes gráficos guardados en tus dashboards
+        </div>
+        <div className="text-gray-400 mt-2">
+          Crea gráficos con el agente de IA y guárdalos para verlos aquí
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 min-h-screen bg-gray-100">
-      <h2 className="text-2xl font-bold mb-4">📊 Mis Dashboards</h2>
+    <div className="container mx-auto px-4 py-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-gray-800">Mis Dashboards</h1>
+        <button 
+          onClick={fetchDashboards}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+        >
+          Refrescar
+        </button>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {graficos.map(grafico => {
-          const chartData = {
-            labels: grafico.labels,
-            datasets: grafico.values.map((serie, idx) => ({
-              label: serie.label ?? `Serie ${idx + 1}`,
-              data: serie.data,
-              borderWidth: 2,
-            })),
-          };
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {dashboards.map((dashboard) => {
+          const grafico = dashboard.graficos;
+          
+          if (!grafico) {
+            return (
+              <div key={dashboard.id} className="bg-white rounded-lg shadow-md p-6">
+                <div className="text-red-500">Gráfico no encontrado</div>
+              </div>
+            );
+          }
 
           return (
-            <div
-              key={grafico.id}
-              className="bg-white p-4 rounded-lg shadow-md flex flex-col"
-            >
-              {/* título + botón actualizar */}
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-lg font-semibold">{grafico.title}</h3>
-                <button
-                  onClick={() => handleUpdate(grafico)}
-                  className={cls(
-                    'text-sm px-3 py-1 rounded border',
-                    actualizando === grafico.id
-                      ? 'bg-gray-300 cursor-wait'
-                      : 'bg-blue-100 hover:bg-blue-200'
-                  )}
-                  disabled={actualizando === grafico.id}
-                >
-                  🔄 {actualizando === grafico.id ? 'Actualizando…' : 'Actualizar'}
-                </button>
+            <div key={dashboard.id} className="bg-white rounded-lg shadow-md p-6">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-xl font-semibold text-gray-800">
+                  {grafico.title || 'Sin título'}
+                </h3>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => refreshChart(grafico.id, grafico.sql)}
+                    disabled={refreshingChart === grafico.id}
+                    className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50 transition-colors"
+                  >
+                    {refreshingChart === grafico.id ? 'Actualizando...' : 'Actualizar'}
+                  </button>
+                  <button
+                    onClick={() => deleteDashboard(dashboard.id)}
+                    className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+              
+              <div className="mb-4">
+                <span className="text-sm text-gray-500">
+                  Tipo: {grafico.chart_type} | Creado: {new Date(grafico.created_at).toLocaleDateString()}
+                </span>
               </div>
 
-              {/* contenedor del gráfico */}
-              <div className="flex-1">
-                {grafico.chart_type === 'line' && (
-                  <Line options={{ maintainAspectRatio: false }} data={chartData} />
-                )}
-                {grafico.chart_type === 'bar' && (
-                  <Bar options={{ maintainAspectRatio: false }} data={chartData} />
-                )}
+              <div className="h-64">
+                {renderChart(grafico)}
               </div>
             </div>
           );
@@ -166,4 +352,6 @@ export default function DashboardPage() {
       </div>
     </div>
   );
-}
+};
+
+export default DashboardPage;
