@@ -111,17 +111,16 @@ const DashboardPage = () => {
     }
   };
 
-  // Función para procesar datos del SQL (ajusta según tu lógica)
+  // Función mejorada para procesar datos del SQL
   const processChartData = (data) => {
     if (!data || data.length === 0) {
       return { values: [], labels: [] };
     }
 
-    // Asumiendo que el primer objeto tiene las claves que necesitamos
     const firstRow = data[0];
     const keys = Object.keys(firstRow);
     
-    // Si hay exactamente 2 columnas, usar una como labels y otra como values
+    // Si hay exactamente 2 columnas, usar una como labels y otra como values (para gráficos simples)
     if (keys.length === 2) {
       return {
         labels: data.map(row => row[keys[0]]),
@@ -129,17 +128,58 @@ const DashboardPage = () => {
       };
     }
     
-    // Si hay más columnas, usar la primera como label y el resto como values
-    const labelKey = keys[0];
-    const valueKeys = keys.slice(1);
+    // Para gráficos multi-line: primera columna como labels, resto como series de datos
+    if (keys.length > 2) {
+      const labelKey = keys[0];
+      const valueKeys = keys.slice(1);
+      
+      return {
+        labels: data.map(row => row[labelKey]),
+        values: valueKeys.map(key => ({
+          label: key,
+          data: data.map(row => row[key])
+        }))
+      };
+    }
     
+    // Fallback para una sola columna
     return {
-      labels: data.map(row => row[labelKey]),
-      values: valueKeys.map(key => data.map(row => row[key]))
+      labels: data.map((_, index) => `Item ${index + 1}`),
+      values: data.map(row => row[keys[0]])
     };
   };
 
-  // Función para renderizar un gráfico
+  // Función para generar colores automáticamente
+  const generateColors = (count) => {
+    const colors = [
+      'rgba(255, 99, 132, 0.8)',
+      'rgba(54, 162, 235, 0.8)',
+      'rgba(255, 205, 86, 0.8)',
+      'rgba(75, 192, 192, 0.8)',
+      'rgba(153, 102, 255, 0.8)',
+      'rgba(255, 159, 64, 0.8)',
+      'rgba(199, 199, 199, 0.8)',
+      'rgba(83, 102, 255, 0.8)',
+    ];
+    
+    const borderColors = [
+      'rgba(255, 99, 132, 1)',
+      'rgba(54, 162, 235, 1)',
+      'rgba(255, 205, 86, 1)',
+      'rgba(75, 192, 192, 1)',
+      'rgba(153, 102, 255, 1)',
+      'rgba(255, 159, 64, 1)',
+      'rgba(199, 199, 199, 1)',
+      'rgba(83, 102, 255, 1)',
+    ];
+    
+    return {
+      backgrounds: Array.from({ length: count }, (_, i) => colors[i % colors.length]),
+      borders: Array.from({ length: count }, (_, i) => borderColors[i % borderColors.length])
+    };
+  };
+
+  // Función mejorada para renderizar un gráfico
   const renderChart = (grafico) => {
     if (!grafico.values || !grafico.labels) {
       return <div className="text-gray-500">No hay datos para mostrar</div>;
@@ -181,31 +221,20 @@ const DashboardPage = () => {
             borderWidth: 1
           }]
         };
-        return <Bar data={chartData} options={{ responsive: true }} />;
+        return <Bar data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
 
       case 'pie':
+        const pieColors = generateColors(Array.isArray(values) ? values.length : 1);
         chartData = {
           labels: labels,
           datasets: [{
             data: values,
-            backgroundColor: [
-              'rgba(255, 99, 132, 0.5)',
-              'rgba(54, 162, 235, 0.5)',
-              'rgba(255, 205, 86, 0.5)',
-              'rgba(75, 192, 192, 0.5)',
-              'rgba(153, 102, 255, 0.5)',
-            ],
-            borderColor: [
-              'rgba(255, 99, 132, 1)',
-              'rgba(54, 162, 235, 1)',
-              'rgba(255, 205, 86, 1)',
-              'rgba(75, 192, 192, 1)',
-              'rgba(153, 102, 255, 1)',
-            ],
+            backgroundColor: pieColors.backgrounds,
+            borderColor: pieColors.borders,
             borderWidth: 1
           }]
         };
-        return <Pie data={chartData} options={{ responsive: true }} />;
+        return <Pie data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
 
       case 'line':
         chartData = {
@@ -215,10 +244,74 @@ const DashboardPage = () => {
             data: values,
             fill: false,
             borderColor: 'rgba(75, 192, 192, 1)',
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
             tension: 0.1
           }]
         };
-        return <Line data={chartData} options={{ responsive: true }} />;
+        return <Line data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
+
+      case 'multi-line':
+        // Para gráficos multi-línea, values debe ser un array de objetos con label y data
+        let datasets = [];
+        
+        if (Array.isArray(values) && values.length > 0) {
+          // Si values es un array de objetos con estructura {label, data}
+          if (typeof values[0] === 'object' && values[0].label && values[0].data) {
+            const colors = generateColors(values.length);
+            datasets = values.map((series, index) => ({
+              label: series.label,
+              data: series.data,
+              borderColor: colors.borders[index],
+              backgroundColor: colors.backgrounds[index],
+              fill: false,
+              tension: 0.1
+            }));
+          } 
+          // Si values es un array 2D (array de arrays)
+          else if (Array.isArray(values[0])) {
+            const colors = generateColors(values.length);
+            datasets = values.map((series, index) => ({
+              label: `Serie ${index + 1}`,
+              data: series,
+              borderColor: colors.borders[index],
+              backgroundColor: colors.backgrounds[index],
+              fill: false,
+              tension: 0.1
+            }));
+          }
+          // Si values es un array simple, crear una sola línea
+          else {
+            datasets = [{
+              label: 'Datos',
+              data: values,
+              borderColor: 'rgba(75, 192, 192, 1)',
+              backgroundColor: 'rgba(75, 192, 192, 0.2)',
+              fill: false,
+              tension: 0.1
+            }];
+          }
+        }
+
+        chartData = {
+          labels: labels,
+          datasets: datasets
+        };
+        
+        return <Line data={chartData} options={{ 
+          responsive: true, 
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top'
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }} />;
 
       default:
         return <div className="text-gray-500">Tipo de gráfico no soportado: {grafico.chart_type}</div>;
@@ -304,50 +397,53 @@ const DashboardPage = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {dashboards.map((dashboard) => {
-          const grafico = dashboard.graficos;
+          // Corregir el acceso a los gráficos - pueden ser un array o un objeto
+          const graficos = Array.isArray(dashboard.graficos) ? dashboard.graficos : [dashboard.graficos];
           
-          if (!grafico) {
-            return (
-              <div key={dashboard.id} className="bg-white rounded-lg shadow-md p-6">
-                <div className="text-red-500">Gráfico no encontrado</div>
-              </div>
-            );
-          }
+          return graficos.map((grafico) => {
+            if (!grafico) {
+              return (
+                <div key={`${dashboard.id}-no-chart`} className="bg-white rounded-lg shadow-md p-6">
+                  <div className="text-red-500">Gráfico no encontrado</div>
+                </div>
+              );
+            }
 
-          return (
-            <div key={dashboard.id} className="bg-white rounded-lg shadow-md p-6">
-              <div className="flex justify-between items-start mb-4">
-                <h3 className="text-xl font-semibold text-gray-800">
-                  {grafico.title || 'Sin título'}
-                </h3>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => refreshChart(grafico.id, grafico.sql)}
-                    disabled={refreshingChart === grafico.id}
-                    className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50 transition-colors"
-                  >
-                    {refreshingChart === grafico.id ? 'Actualizando...' : 'Actualizar'}
-                  </button>
-                  <button
-                    onClick={() => deleteDashboard(dashboard.id)}
-                    className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
-                  >
-                    Eliminar
-                  </button>
+            return (
+              <div key={`${dashboard.id}-${grafico.id}`} className="bg-white rounded-lg shadow-md p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="text-xl font-semibold text-gray-800">
+                    {grafico.title || 'Sin título'}
+                  </h3>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => refreshChart(grafico.id, grafico.sql)}
+                      disabled={refreshingChart === grafico.id}
+                      className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50 transition-colors"
+                    >
+                      {refreshingChart === grafico.id ? 'Actualizando...' : 'Actualizar'}
+                    </button>
+                    <button
+                      onClick={() => deleteDashboard(dashboard.id)}
+                      className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="mb-4">
+                  <span className="text-sm text-gray-500">
+                    Tipo: {grafico.chart_type} | Creado: {new Date(grafico.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+
+                <div className="h-64 relative">
+                  {renderChart(grafico)}
                 </div>
               </div>
-              
-              <div className="mb-4">
-                <span className="text-sm text-gray-500">
-                  Tipo: {grafico.chart_type} | Creado: {new Date(grafico.created_at).toLocaleDateString()}
-                </span>
-              </div>
-
-              <div className="h-64">
-                {renderChart(grafico)}
-              </div>
-            </div>
-          );
+            );
+          });
         })}
       </div>
     </div>
