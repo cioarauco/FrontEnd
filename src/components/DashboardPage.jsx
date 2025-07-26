@@ -270,125 +270,144 @@ const renderChart = (grafico) => {
       };
       return <Line data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
 
-    case 'multi-line':
-      let datasets = [];
+case 'multi-line':
+  let datasets = [];
+  
+  console.log('Procesando multi-line con values:', values);
+  
+  // CORRECCIÓN ESPECÍFICA: Manejar el formato real de los datos
+  if (Array.isArray(values) && values.length > 0) {
+    // Caso 1: Array de objetos con estructura {name, data} (formato real)
+    if (typeof values[0] === 'object' && values[0] !== null && 'name' in values[0] && 'data' in values[0]) {
+      const colors = generateColors(values.length);
+      datasets = values.map((series, index) => ({
+        label: series.name, // Usar 'name' en lugar de 'label'
+        data: Array.isArray(series.data) ? series.data : [],
+        borderColor: colors.borders[index],
+        backgroundColor: colors.backgrounds[index],
+        fill: false,
+        tension: 0.1
+      }));
+    }
+    // Caso 2: Array de objetos con estructura {label, data} (formato esperado anteriormente)
+    else if (typeof values[0] === 'object' && values[0] !== null && 'label' in values[0] && 'data' in values[0]) {
+      const colors = generateColors(values.length);
+      datasets = values.map((series, index) => ({
+        label: series.label,
+        data: Array.isArray(series.data) ? series.data : [],
+        borderColor: colors.borders[index],
+        backgroundColor: colors.backgrounds[index],
+        fill: false,
+        tension: 0.1
+      }));
+    } 
+    // Caso 3: Array de arrays [[data1], [data2], ...]
+    else if (Array.isArray(values[0])) {
+      const colors = generateColors(values.length);
+      datasets = values.map((series, index) => ({
+        label: `Serie ${index + 1}`,
+        data: series,
+        borderColor: colors.borders[index],
+        backgroundColor: colors.backgrounds[index],
+        fill: false,
+        tension: 0.1
+      }));
+    }
+    // Caso 4: Array simple de valores [1, 2, 3, ...] - convertir a dataset único
+    else if (typeof values[0] === 'number' || typeof values[0] === 'string') {
+      datasets = [{
+        label: 'Datos',
+        data: values,
+        borderColor: 'rgba(75, 192, 192, 1)',
+        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+        fill: false,
+        tension: 0.1
+      }];
+    }
+  }
+  // Si values es un objeto (no array), intentar procesarlo
+  else if (values && typeof values === 'object' && !Array.isArray(values)) {
+    const keys = Object.keys(values);
+    console.log('Values es objeto con keys:', keys);
+    
+    // Si las keys son nombres de series y los valores son arrays
+    if (keys.length > 0) {
+      const colors = generateColors(keys.length);
+      datasets = keys.map((key, index) => {
+        const seriesData = values[key];
+        return {
+          label: key,
+          data: Array.isArray(seriesData) ? seriesData : [seriesData],
+          borderColor: colors.borders[index],
+          backgroundColor: colors.backgrounds[index],
+          fill: false,
+          tension: 0.1
+        };
+      });
+    }
+  }
+  // Si values es un string que parece JSON, intentar parsearlo nuevamente
+  else if (typeof values === 'string') {
+    try {
+      const reparsedValues = JSON.parse(values);
+      console.log('Re-parsed values:', reparsedValues);
       
-      console.log('Procesando multi-line con values:', values);
-      
-      // CORRECCIÓN PRINCIPAL: Mejorar la detección y procesamiento de datos multi-línea
-      if (Array.isArray(values) && values.length > 0) {
-        // Caso 1: Array de objetos con estructura {label, data}
-        if (typeof values[0] === 'object' && values[0] !== null && 'label' in values[0] && 'data' in values[0]) {
-          const colors = generateColors(values.length);
-          datasets = values.map((series, index) => ({
-            label: series.label,
-            data: Array.isArray(series.data) ? series.data : [],
-            borderColor: colors.borders[index],
-            backgroundColor: colors.backgrounds[index],
-            fill: false,
-            tension: 0.1
-          }));
-        } 
-        // Caso 2: Array de arrays [[data1], [data2], ...]
-        else if (Array.isArray(values[0])) {
-          const colors = generateColors(values.length);
-          datasets = values.map((series, index) => ({
-            label: `Serie ${index + 1}`,
-            data: series,
-            borderColor: colors.borders[index],
-            backgroundColor: colors.backgrounds[index],
-            fill: false,
-            tension: 0.1
-          }));
-        }
-        // Caso 3: Array simple de valores [1, 2, 3, ...] - convertir a dataset único
-        else if (typeof values[0] === 'number' || typeof values[0] === 'string') {
-          datasets = [{
-            label: 'Datos',
-            data: values,
-            borderColor: 'rgba(75, 192, 192, 1)',
-            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-            fill: false,
-            tension: 0.1
-          }];
-        }
-      }
-      // NUEVO: Si values es un objeto (no array), intentar procesarlo
-      else if (values && typeof values === 'object' && !Array.isArray(values)) {
-        const keys = Object.keys(values);
-        console.log('Values es objeto con keys:', keys);
-        
-        // Si las keys son nombres de series y los valores son arrays
-        if (keys.length > 0) {
-          const colors = generateColors(keys.length);
-          datasets = keys.map((key, index) => {
-            const seriesData = values[key];
-            return {
-              label: key,
-              data: Array.isArray(seriesData) ? seriesData : [seriesData],
-              borderColor: colors.borders[index],
-              backgroundColor: colors.backgrounds[index],
-              fill: false,
-              tension: 0.1
-            };
-          });
-        }
-      }
-      // NUEVO: Si values es un string que parece JSON, intentar parsearlo nuevamente
-      else if (typeof values === 'string') {
-        try {
-          const reparsedValues = JSON.parse(values);
-          console.log('Re-parsed values:', reparsedValues);
+      if (Array.isArray(reparsedValues)) {
+        const colors = generateColors(reparsedValues.length);
+        datasets = reparsedValues.map((series, index) => {
+          // Manejar tanto formato {name, data} como {label, data}
+          const seriesLabel = series.name || series.label || `Serie ${index + 1}`;
+          const seriesData = series.data || (Array.isArray(series) ? series : [series]);
           
-          if (Array.isArray(reparsedValues)) {
-            const colors = generateColors(reparsedValues.length);
-            datasets = reparsedValues.map((series, index) => ({
-              label: series.label || `Serie ${index + 1}`,
-              data: Array.isArray(series.data) ? series.data : (Array.isArray(series) ? series : [series]),
-              borderColor: colors.borders[index],
-              backgroundColor: colors.backgrounds[index],
-              fill: false,
-              tension: 0.1
-            }));
-          }
-        } catch (e) {
-          console.error('Error re-parsing values:', e);
-        }
+          return {
+            label: seriesLabel,
+            data: Array.isArray(seriesData) ? seriesData : [seriesData],
+            borderColor: colors.borders[index],
+            backgroundColor: colors.backgrounds[index],
+            fill: false,
+            tension: 0.1
+          };
+        });
       }
+    } catch (e) {
+      console.error('Error re-parsing values:', e);
+    }
+  }
 
-      console.log('Datasets generados:', datasets);
+  console.log('Datasets generados:', datasets);
 
-      if (datasets.length === 0) {
-        return (
-          <div className="text-red-500">
-            <div>No se pudieron procesar los datos del gráfico multi-línea</div>
-            <div className="text-xs mt-2">
-              Datos recibidos: {JSON.stringify(values, null, 2)}
-            </div>
-          </div>
-        );
+  if (datasets.length === 0) {
+    return (
+      <div className="text-red-500">
+        <div>No se pudieron procesar los datos del gráfico multi-línea</div>
+        <div className="text-xs mt-2 bg-gray-100 p-2 rounded overflow-auto max-h-32">
+          <div>Datos recibidos:</div>
+          <pre className="text-xs">{JSON.stringify(values, null, 2)}</pre>
+        </div>
+      </div>
+    );
+  }
+
+  chartData = {
+    labels: labels,
+    datasets: datasets
+  };
+  
+  return <Line data={chartData} options={{ 
+    responsive: true, 
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top'
       }
-
-      chartData = {
-        labels: labels,
-        datasets: datasets
-      };
-      
-      return <Line data={chartData} options={{ 
-        responsive: true, 
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: true,
-            position: 'top'
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true
-          }
-        }
-      }} />;
+    },
+    scales: {
+      y: {
+        beginAtZero: true
+      }
+    }
+  }} />;
 
     default:
       return <div className="text-gray-500">Tipo de gráfico no soportado: {grafico.chart_type}</div>;
