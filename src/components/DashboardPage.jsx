@@ -111,43 +111,50 @@ const DashboardPage = () => {
     }
   };
 
-  // Función mejorada para procesar datos del SQL
-  const processChartData = (data) => {
-    if (!data || data.length === 0) {
-      return { values: [], labels: [] };
-    }
+// Función mejorada para procesar datos del SQL
+const processChartData = (data) => {
+  if (!data || data.length === 0) {
+    return { values: [], labels: [] };
+  }
 
-    const firstRow = data[0];
-    const keys = Object.keys(firstRow);
-    
-    // Si hay exactamente 2 columnas, usar una como labels y otra como values (para gráficos simples)
-    if (keys.length === 2) {
-      return {
-        labels: data.map(row => row[keys[0]]),
-        values: data.map(row => row[keys[1]])
-      };
-    }
-    
-    // Para gráficos multi-line: primera columna como labels, resto como series de datos
-    if (keys.length > 2) {
-      const labelKey = keys[0];
-      const valueKeys = keys.slice(1);
-      
-      return {
-        labels: data.map(row => row[labelKey]),
-        values: valueKeys.map(key => ({
-          label: key,
-          data: data.map(row => row[key])
-        }))
-      };
-    }
-    
-    // Fallback para una sola columna
+  const firstRow = data[0];
+  const keys = Object.keys(firstRow);
+  
+  console.log('Processing chart data:', { data, keys });
+  
+  // Si hay exactamente 2 columnas, usar una como labels y otra como values (para gráficos simples)
+  if (keys.length === 2) {
     return {
-      labels: data.map((_, index) => `Item ${index + 1}`),
-      values: data.map(row => row[keys[0]])
+      labels: data.map(row => row[keys[0]]),
+      values: data.map(row => row[keys[1]])
     };
+  }
+  
+  // Para gráficos multi-line: primera columna como labels, resto como series de datos
+  if (keys.length > 2) {
+    const labelKey = keys[0];
+    const valueKeys = keys.slice(1);
+    
+    // CORRECCIÓN: Crear estructura compatible con multi-line
+    const multiLineData = valueKeys.map(key => ({
+      label: key,
+      data: data.map(row => row[key])
+    }));
+    
+    console.log('Multi-line data processed:', multiLineData);
+    
+    return {
+      labels: data.map(row => row[labelKey]),
+      values: multiLineData // Array de objetos con {label, data}
+    };
+  }
+  
+  // Fallback para una sola columna
+  return {
+    labels: data.map((_, index) => `Item ${index + 1}`),
+    values: data.map(row => row[keys[0]])
   };
+};
 
   // Función para generar colores automáticamente
   const generateColors = (count) => {
@@ -195,165 +202,198 @@ const DashboardPage = () => {
     }
   };
 
-  // Función mejorada para renderizar un gráfico
-  const renderChart = (grafico) => {
-    console.log('Renderizando gráfico:', {
-      id: grafico.id,
-      title: grafico.title,
-      type: grafico.chart_type,
-      values: grafico.values,
-      labels: grafico.labels
-    });
+// Función mejorada para renderizar un gráfico
+const renderChart = (grafico) => {
+  console.log('Renderizando gráfico:', {
+    id: grafico.id,
+    title: grafico.title,
+    type: grafico.chart_type,
+    values: grafico.values,
+    labels: grafico.labels
+  });
 
-    if (!grafico.values || !grafico.labels) {
-      return <div className="text-gray-500">No hay datos para mostrar</div>;
-    }
+  if (!grafico.values || !grafico.labels) {
+    return <div className="text-gray-500">No hay datos para mostrar</div>;
+  }
 
-    // Parsear datos de forma segura
-    let values = safeJsonParse(grafico.values, []);
-    let labels = safeJsonParse(grafico.labels, []);
+  // Parsear datos de forma segura
+  let values = safeJsonParse(grafico.values, []);
+  let labels = safeJsonParse(grafico.labels, []);
 
-    console.log('Datos parseados:', { values, labels, type: grafico.chart_type });
+  console.log('Datos parseados:', { values, labels, type: grafico.chart_type });
 
-    if (!values || !labels || (Array.isArray(values) && values.length === 0)) {
-      return <div className="text-gray-500">No hay datos válidos para mostrar</div>;
-    }
+  if (!values || !labels || (Array.isArray(values) && values.length === 0)) {
+    return <div className="text-gray-500">No hay datos válidos para mostrar</div>;
+  }
 
-    let chartData;
+  let chartData;
 
-    // Configurar datos según el tipo de gráfico
-    switch (grafico.chart_type) {
-      case 'bar':
-        chartData = {
-          labels: labels,
-          datasets: [{
-            label: 'Datos',
-            data: values,
-            backgroundColor: 'rgba(54, 162, 235, 0.5)',
-            borderColor: 'rgba(54, 162, 235, 1)',
-            borderWidth: 1
-          }]
-        };
-        return <Bar data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
+  // Configurar datos según el tipo de gráfico
+  switch (grafico.chart_type) {
+    case 'bar':
+      chartData = {
+        labels: labels,
+        datasets: [{
+          label: 'Datos',
+          data: values,
+          backgroundColor: 'rgba(54, 162, 235, 0.5)',
+          borderColor: 'rgba(54, 162, 235, 1)',
+          borderWidth: 1
+        }]
+      };
+      return <Bar data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
 
-      case 'pie':
-        const pieColors = generateColors(Array.isArray(values) ? values.length : 1);
-        chartData = {
-          labels: labels,
-          datasets: [{
-            data: values,
-            backgroundColor: pieColors.backgrounds,
-            borderColor: pieColors.borders,
-            borderWidth: 1
-          }]
-        };
-        return <Pie data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
+    case 'pie':
+      const pieColors = generateColors(Array.isArray(values) ? values.length : 1);
+      chartData = {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: pieColors.backgrounds,
+          borderColor: pieColors.borders,
+          borderWidth: 1
+        }]
+      };
+      return <Pie data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
 
-      case 'line':
-        chartData = {
-          labels: labels,
-          datasets: [{
-            label: 'Datos',
-            data: values,
+    case 'line':
+      chartData = {
+        labels: labels,
+        datasets: [{
+          label: 'Datos',
+          data: values,
+          fill: false,
+          borderColor: 'rgba(75, 192, 192, 1)',
+          backgroundColor: 'rgba(75, 192, 192, 0.2)',
+          tension: 0.1
+        }]
+      };
+      return <Line data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
+
+    case 'multi-line':
+      let datasets = [];
+      
+      console.log('Procesando multi-line con values:', values);
+      
+      // CORRECCIÓN PRINCIPAL: Mejorar la detección y procesamiento de datos multi-línea
+      if (Array.isArray(values) && values.length > 0) {
+        // Caso 1: Array de objetos con estructura {label, data}
+        if (typeof values[0] === 'object' && values[0] !== null && 'label' in values[0] && 'data' in values[0]) {
+          const colors = generateColors(values.length);
+          datasets = values.map((series, index) => ({
+            label: series.label,
+            data: Array.isArray(series.data) ? series.data : [],
+            borderColor: colors.borders[index],
+            backgroundColor: colors.backgrounds[index],
             fill: false,
+            tension: 0.1
+          }));
+        } 
+        // Caso 2: Array de arrays [[data1], [data2], ...]
+        else if (Array.isArray(values[0])) {
+          const colors = generateColors(values.length);
+          datasets = values.map((series, index) => ({
+            label: `Serie ${index + 1}`,
+            data: series,
+            borderColor: colors.borders[index],
+            backgroundColor: colors.backgrounds[index],
+            fill: false,
+            tension: 0.1
+          }));
+        }
+        // Caso 3: Array simple de valores [1, 2, 3, ...] - convertir a dataset único
+        else if (typeof values[0] === 'number' || typeof values[0] === 'string') {
+          datasets = [{
+            label: 'Datos',
+            data: values,
             borderColor: 'rgba(75, 192, 192, 1)',
             backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            fill: false,
             tension: 0.1
-          }]
-        };
-        return <Line data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
-
-      case 'multi-line':
-        let datasets = [];
-        
-        console.log('Procesando multi-line con values:', values);
-        
-        // Verificar si values es un array de objetos con estructura {label, data}
-        if (Array.isArray(values) && values.length > 0) {
-          if (typeof values[0] === 'object' && values[0] !== null && 'label' in values[0] && 'data' in values[0]) {
-            // Caso 1: Array de objetos con {label, data}
-            const colors = generateColors(values.length);
-            datasets = values.map((series, index) => ({
-              label: series.label,
-              data: Array.isArray(series.data) ? series.data : [],
-              borderColor: colors.borders[index],
-              backgroundColor: colors.backgrounds[index],
-              fill: false,
-              tension: 0.1
-            }));
-          } 
-          else if (Array.isArray(values[0])) {
-            // Caso 2: Array de arrays [[data1], [data2], ...]
-            const colors = generateColors(values.length);
-            datasets = values.map((series, index) => ({
-              label: `Serie ${index + 1}`,
-              data: series,
-              borderColor: colors.borders[index],
-              backgroundColor: colors.backgrounds[index],
-              fill: false,
-              tension: 0.1
-            }));
-          }
-          else {
-            // Caso 3: Array simple de valores [1, 2, 3, ...]
-            datasets = [{
-              label: 'Datos',
-              data: values,
-              borderColor: 'rgba(75, 192, 192, 1)',
-              backgroundColor: 'rgba(75, 192, 192, 0.2)',
-              fill: false,
-              tension: 0.1
-            }];
-          }
+          }];
         }
-        // Si values no es array, intentar crear un dataset básico
-        else if (values && typeof values === 'object') {
-          // Si values es un objeto, intentar convertirlo
-          const keys = Object.keys(values);
-          if (keys.length > 0) {
-            const colors = generateColors(keys.length);
-            datasets = keys.map((key, index) => ({
+      }
+      // NUEVO: Si values es un objeto (no array), intentar procesarlo
+      else if (values && typeof values === 'object' && !Array.isArray(values)) {
+        const keys = Object.keys(values);
+        console.log('Values es objeto con keys:', keys);
+        
+        // Si las keys son nombres de series y los valores son arrays
+        if (keys.length > 0) {
+          const colors = generateColors(keys.length);
+          datasets = keys.map((key, index) => {
+            const seriesData = values[key];
+            return {
               label: key,
-              data: Array.isArray(values[key]) ? values[key] : [values[key]],
+              data: Array.isArray(seriesData) ? seriesData : [seriesData],
+              borderColor: colors.borders[index],
+              backgroundColor: colors.backgrounds[index],
+              fill: false,
+              tension: 0.1
+            };
+          });
+        }
+      }
+      // NUEVO: Si values es un string que parece JSON, intentar parsearlo nuevamente
+      else if (typeof values === 'string') {
+        try {
+          const reparsedValues = JSON.parse(values);
+          console.log('Re-parsed values:', reparsedValues);
+          
+          if (Array.isArray(reparsedValues)) {
+            const colors = generateColors(reparsedValues.length);
+            datasets = reparsedValues.map((series, index) => ({
+              label: series.label || `Serie ${index + 1}`,
+              data: Array.isArray(series.data) ? series.data : (Array.isArray(series) ? series : [series]),
               borderColor: colors.borders[index],
               backgroundColor: colors.backgrounds[index],
               fill: false,
               tension: 0.1
             }));
           }
+        } catch (e) {
+          console.error('Error re-parsing values:', e);
         }
+      }
 
-        console.log('Datasets generados:', datasets);
+      console.log('Datasets generados:', datasets);
 
-        if (datasets.length === 0) {
-          return <div className="text-red-500">No se pudieron procesar los datos del gráfico multi-línea</div>;
-        }
+      if (datasets.length === 0) {
+        return (
+          <div className="text-red-500">
+            <div>No se pudieron procesar los datos del gráfico multi-línea</div>
+            <div className="text-xs mt-2">
+              Datos recibidos: {JSON.stringify(values, null, 2)}
+            </div>
+          </div>
+        );
+      }
 
-        chartData = {
-          labels: labels,
-          datasets: datasets
-        };
-        
-        return <Line data={chartData} options={{ 
-          responsive: true, 
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              display: true,
-              position: 'top'
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true
-            }
+      chartData = {
+        labels: labels,
+        datasets: datasets
+      };
+      
+      return <Line data={chartData} options={{ 
+        responsive: true, 
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top'
           }
-        }} />;
+        },
+        scales: {
+          y: {
+            beginAtZero: true
+          }
+        }
+      }} />;
 
-      default:
-        return <div className="text-gray-500">Tipo de gráfico no soportado: {grafico.chart_type}</div>;
-    }
-  };
+    default:
+      return <div className="text-gray-500">Tipo de gráfico no soportado: {grafico.chart_type}</div>;
+  }
+};
 
   // Función para eliminar un dashboard
   const deleteDashboard = async (dashboardId) => {
