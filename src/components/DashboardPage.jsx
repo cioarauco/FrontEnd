@@ -179,34 +179,47 @@ const DashboardPage = () => {
     };
   };
 
+  // Función para limpiar y parsear datos JSON de forma segura
+  const safeJsonParse = (jsonString, fallback = null) => {
+    if (!jsonString) return fallback;
+    
+    if (typeof jsonString !== 'string') {
+      return jsonString; // Ya es un objeto/array
+    }
+    
+    try {
+      return JSON.parse(jsonString);
+    } catch (e) {
+      console.error('Error parsing JSON:', e, 'Original string:', jsonString);
+      return fallback;
+    }
+  };
+
   // Función mejorada para renderizar un gráfico
   const renderChart = (grafico) => {
+    console.log('Renderizando gráfico:', {
+      id: grafico.id,
+      title: grafico.title,
+      type: grafico.chart_type,
+      values: grafico.values,
+      labels: grafico.labels
+    });
+
     if (!grafico.values || !grafico.labels) {
       return <div className="text-gray-500">No hay datos para mostrar</div>;
     }
 
+    // Parsear datos de forma segura
+    let values = safeJsonParse(grafico.values, []);
+    let labels = safeJsonParse(grafico.labels, []);
+
+    console.log('Datos parseados:', { values, labels, type: grafico.chart_type });
+
+    if (!values || !labels || (Array.isArray(values) && values.length === 0)) {
+      return <div className="text-gray-500">No hay datos válidos para mostrar</div>;
+    }
+
     let chartData;
-    let values = grafico.values;
-    let labels = grafico.labels;
-
-    // Parsear si los datos están como string JSON
-    if (typeof values === 'string') {
-      try {
-        values = JSON.parse(values);
-      } catch (e) {
-        console.error('Error parsing values:', e);
-        return <div className="text-red-500">Error en los datos del gráfico</div>;
-      }
-    }
-
-    if (typeof labels === 'string') {
-      try {
-        labels = JSON.parse(labels);
-      } catch (e) {
-        console.error('Error parsing labels:', e);
-        return <div className="text-red-500">Error en las etiquetas del gráfico</div>;
-      }
-    }
 
     // Configurar datos según el tipo de gráfico
     switch (grafico.chart_type) {
@@ -251,24 +264,26 @@ const DashboardPage = () => {
         return <Line data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
 
       case 'multi-line':
-        // Para gráficos multi-línea, values debe ser un array de objetos con label y data
         let datasets = [];
         
+        console.log('Procesando multi-line con values:', values);
+        
+        // Verificar si values es un array de objetos con estructura {label, data}
         if (Array.isArray(values) && values.length > 0) {
-          // Si values es un array de objetos con estructura {label, data}
-          if (typeof values[0] === 'object' && values[0].label && values[0].data) {
+          if (typeof values[0] === 'object' && values[0] !== null && 'label' in values[0] && 'data' in values[0]) {
+            // Caso 1: Array de objetos con {label, data}
             const colors = generateColors(values.length);
             datasets = values.map((series, index) => ({
               label: series.label,
-              data: series.data,
+              data: Array.isArray(series.data) ? series.data : [],
               borderColor: colors.borders[index],
               backgroundColor: colors.backgrounds[index],
               fill: false,
               tension: 0.1
             }));
           } 
-          // Si values es un array 2D (array de arrays)
           else if (Array.isArray(values[0])) {
+            // Caso 2: Array de arrays [[data1], [data2], ...]
             const colors = generateColors(values.length);
             datasets = values.map((series, index) => ({
               label: `Serie ${index + 1}`,
@@ -279,8 +294,8 @@ const DashboardPage = () => {
               tension: 0.1
             }));
           }
-          // Si values es un array simple, crear una sola línea
           else {
+            // Caso 3: Array simple de valores [1, 2, 3, ...]
             datasets = [{
               label: 'Datos',
               data: values,
@@ -290,6 +305,28 @@ const DashboardPage = () => {
               tension: 0.1
             }];
           }
+        }
+        // Si values no es array, intentar crear un dataset básico
+        else if (values && typeof values === 'object') {
+          // Si values es un objeto, intentar convertirlo
+          const keys = Object.keys(values);
+          if (keys.length > 0) {
+            const colors = generateColors(keys.length);
+            datasets = keys.map((key, index) => ({
+              label: key,
+              data: Array.isArray(values[key]) ? values[key] : [values[key]],
+              borderColor: colors.borders[index],
+              backgroundColor: colors.backgrounds[index],
+              fill: false,
+              tension: 0.1
+            }));
+          }
+        }
+
+        console.log('Datasets generados:', datasets);
+
+        if (datasets.length === 0) {
+          return <div className="text-red-500">No se pudieron procesar los datos del gráfico multi-línea</div>;
         }
 
         chartData = {
