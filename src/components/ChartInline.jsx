@@ -1,4 +1,4 @@
-// ChartInline.jsx – versión con mejoras estéticas
+// ChartInline.jsx – optimizado para fondo naranja
 import React from "react";
 import { Line, Bar, Pie } from "react-chartjs-2";
 import {
@@ -23,18 +23,29 @@ ChartJS.register(
   ArcElement,
   Legend,
   Tooltip,
-  Filler // permite rellenos bajo la línea
+  Filler
 );
 
-// 🎨 Paleta base (tailwind‑like)
+// 🎨 Paleta optimizada para fondo naranja - colores que contrastan bien
 const COLORS = [
-  "#2563eb", // blue‑600
-  "#10b981", // emerald‑500
-  "#f59e0b", // amber‑500
-  "#ef4444", // red‑500
-  "#8b5cf6", // violet‑500
-  "#14b8a6", // teal‑500
-  "#f43f5e", // rose‑500
+  "#1e40af", // blue-700 (contraste fuerte con naranja)
+  "#059669", // emerald-600 (verde profundo)
+  "#7c3aed", // violet-600 (púrpura elegante)
+  "#0891b2", // cyan-600 (azul verdoso)
+  "#be185d", // pink-700 (magenta profundo)
+  "#047857", // emerald-700 (verde oscuro)
+  "#4338ca", // indigo-700 (índigo profundo)
+];
+
+// 🌟 Paleta alternativa más suave y moderna
+const SOFT_COLORS = [
+  "#3b82f6", // blue-500
+  "#06b6d4", // cyan-500  
+  "#8b5cf6", // violet-500
+  "#10b981", // emerald-500
+  "#f43f5e", // rose-500
+  "#6366f1", // indigo-500
+  "#84cc16", // lime-500
 ];
 
 // Utilidad para agregar transparencia a un color HEX
@@ -46,44 +57,51 @@ const withAlpha = (hex, alpha) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-export default function ChartInline({ data }) {
+export default function ChartInline({ data, colorScheme = "default" }) {
   if (!data || !data.labels || !data.values) return null;
+
+  // Seleccionar paleta de colores
+  const selectedColors = colorScheme === "soft" ? SOFT_COLORS : COLORS;
 
   const isMultiSeries =
     Array.isArray(data.values) && typeof data.values[0] === "object";
 
-  // 🗂️ Construcción dinámica de datasets con colores agradables
+  // 🗂️ Construcción dinámica de datasets con colores optimizados
   const datasets = isMultiSeries
     ? data.values.map((serie, idx) => ({
         label: serie.name,
         data: serie.data,
-        borderColor: COLORS[idx % COLORS.length],
+        borderColor: selectedColors[idx % selectedColors.length],
         backgroundColor:
           data.chart_type === "bar"
-            ? withAlpha(COLORS[idx % COLORS.length], 0.35)
-            : withAlpha(COLORS[idx % COLORS.length], 0.15),
-        pointBackgroundColor: COLORS[idx % COLORS.length],
-        pointRadius: 4,
-        pointHoverRadius: 6,
-        fill: data.chart_type === "multi-line", // área bajo la curva sólo para multi‑line
-        tension: 0.3,
-        borderWidth: 2,
+            ? withAlpha(selectedColors[idx % selectedColors.length], 0.4)
+            : withAlpha(selectedColors[idx % selectedColors.length], 0.2),
+        pointBackgroundColor: selectedColors[idx % selectedColors.length],
+        pointBorderColor: "#ffffff",
+        pointBorderWidth: 2,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        fill: data.chart_type === "multi-line",
+        tension: 0.4,
+        borderWidth: 3,
       }))
     : [
         {
           label: data.title || "Serie",
           data: data.values,
-          borderColor: COLORS[0],
+          borderColor: selectedColors[0],
           backgroundColor:
             data.chart_type === "bar"
-              ? withAlpha(COLORS[0], 0.35)
-              : withAlpha(COLORS[0], 0.15),
-          pointBackgroundColor: COLORS[0],
-          pointRadius: 4,
-          pointHoverRadius: 6,
+              ? withAlpha(selectedColors[0], 0.4)
+              : withAlpha(selectedColors[0], 0.2),
+          pointBackgroundColor: selectedColors[0],
+          pointBorderColor: "#ffffff",
+          pointBorderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 7,
           fill: data.chart_type === "line",
-          tension: 0.3,
-          borderWidth: 2,
+          tension: 0.4,
+          borderWidth: 3,
         },
       ];
 
@@ -92,63 +110,93 @@ export default function ChartInline({ data }) {
     datasets,
   };
 
-  // ⚙️ Ajustes visuales comunes
+  // ⚙️ Opciones mejoradas para mejor contraste con fondo naranja
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    layout: { padding: 12 },
+    layout: { padding: 16 },
     plugins: {
       legend: {
         position: "top",
         labels: {
-          color: "#374151", // slate‑700
-          boxWidth: 16,
+          color: "#1f2937", // gris muy oscuro para mejor legibilidad
+          font: { size: 13, weight: "600" },
+          boxWidth: 18,
+          padding: 20,
+          usePointStyle: true,
         },
       },
       tooltip: {
-        backgroundColor: "#1f2937ee", // gray‑800 con transparencia
-        titleFont: { size: 14, weight: "600" },
+        backgroundColor: "#111827f0", // casi negro con transparencia
+        titleColor: "#ffffff",
+        bodyColor: "#e5e7eb",
+        titleFont: { size: 14, weight: "700" },
         bodyFont: { size: 13 },
-        borderColor: "#111827", // gray‑900
+        borderColor: "#374151",
         borderWidth: 1,
-        cornerRadius: 4,
-        padding: 10,
+        cornerRadius: 8,
+        padding: 12,
+        displayColors: true,
+        boxPadding: 6,
       },
       title: {
         display: !!data.title,
         text: data.title,
-        color: "#111827", // gray‑900
-        font: { size: 16, weight: "600" },
-        padding: { bottom: 14 },
+        color: "#111827", // negro para máximo contraste
+        font: { size: 18, weight: "700" },
+        padding: { bottom: 20 },
       },
     },
     scales: {
       x: {
         grid: {
-          color: withAlpha("#e5e7eb", 0.5), // gray‑200 50%
+          color: withAlpha("#374151", 0.3), // gris oscuro sutil
+          lineWidth: 1,
         },
         ticks: {
-          color: "#6b7280", // gray‑500
+          color: "#374151", // gris oscuro para buena legibilidad
+          font: { size: 12, weight: "500" },
           maxRotation: 45,
-          minRotation: 45,
+          minRotation: 0,
           autoSkip: true,
+        },
+        border: {
+          color: "#374151",
+          width: 1,
         },
       },
       y: {
         grid: {
-          color: withAlpha("#e5e7eb", 0.5),
+          color: withAlpha("#374151", 0.2),
+          lineWidth: 1,
         },
         ticks: {
-          color: "#6b7280",
+          color: "#374151",
+          font: { size: 12, weight: "500" },
           beginAtZero: true,
+        },
+        border: {
+          color: "#374151",
+          width: 1,
         },
       },
     },
   };
 
-  // ⬇️ Render según tipo
+  // ⬇️ Wrapper con fondo sutil para mejor contraste
   const Wrapper = ({ children }) => (
-    <div style={{ height: "380px" }}>{children}</div>
+    <div 
+      style={{ 
+        height: "400px",
+        backgroundColor: "rgba(255, 255, 255, 0.9)", // fondo blanco semi-transparente
+        borderRadius: "12px",
+        padding: "16px",
+        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+        border: "1px solid rgba(229, 231, 235, 0.5)"
+      }}
+    >
+      {children}
+    </div>
   );
 
   switch (data.chart_type) {
