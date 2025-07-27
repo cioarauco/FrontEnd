@@ -21,6 +21,7 @@ const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshingChart, setRefreshingChart] = useState(null);
+  const [activeTab, setActiveTab] = useState('all'); // Nueva state para pestañas
 
   // Función para obtener los dashboards del usuario
   const fetchDashboards = async () => {
@@ -63,7 +64,7 @@ const DashboardPage = () => {
         throw new Error('Error al obtener dashboards: ' + error.message);
       }
 
-      console.log('Dashboards obtenidos:', data); // Para debugging
+      console.log('Dashboards obtenidos:', data);
       setDashboards(data || []);
     } catch (err) {
       console.error('Error en fetchDashboards:', err);
@@ -111,50 +112,50 @@ const DashboardPage = () => {
     }
   };
 
-// Función mejorada para procesar datos del SQL
-const processChartData = (data) => {
-  if (!data || data.length === 0) {
-    return { values: [], labels: [] };
-  }
+  // Función mejorada para procesar datos del SQL
+  const processChartData = (data) => {
+    if (!data || data.length === 0) {
+      return { values: [], labels: [] };
+    }
 
-  const firstRow = data[0];
-  const keys = Object.keys(firstRow);
-  
-  console.log('Processing chart data:', { data, keys });
-  
-  // Si hay exactamente 2 columnas, usar una como labels y otra como values (para gráficos simples)
-  if (keys.length === 2) {
+    const firstRow = data[0];
+    const keys = Object.keys(firstRow);
+    
+    console.log('Processing chart data:', { data, keys });
+    
+    // Si hay exactamente 2 columnas, usar una como labels y otra como values (para gráficos simples)
+    if (keys.length === 2) {
+      return {
+        labels: data.map(row => row[keys[0]]),
+        values: data.map(row => row[keys[1]])
+      };
+    }
+    
+    // Para gráficos multi-line: primera columna como labels, resto como series de datos
+    if (keys.length > 2) {
+      const labelKey = keys[0];
+      const valueKeys = keys.slice(1);
+      
+      // CORRECCIÓN: Crear estructura compatible con multi-line
+      const multiLineData = valueKeys.map(key => ({
+        label: key,
+        data: data.map(row => row[key])
+      }));
+      
+      console.log('Multi-line data processed:', multiLineData);
+      
+      return {
+        labels: data.map(row => row[labelKey]),
+        values: multiLineData // Array de objetos con {label, data}
+      };
+    }
+    
+    // Fallback para una sola columna
     return {
-      labels: data.map(row => row[keys[0]]),
-      values: data.map(row => row[keys[1]])
+      labels: data.map((_, index) => `Item ${index + 1}`),
+      values: data.map(row => row[keys[0]])
     };
-  }
-  
-  // Para gráficos multi-line: primera columna como labels, resto como series de datos
-  if (keys.length > 2) {
-    const labelKey = keys[0];
-    const valueKeys = keys.slice(1);
-    
-    // CORRECCIÓN: Crear estructura compatible con multi-line
-    const multiLineData = valueKeys.map(key => ({
-      label: key,
-      data: data.map(row => row[key])
-    }));
-    
-    console.log('Multi-line data processed:', multiLineData);
-    
-    return {
-      labels: data.map(row => row[labelKey]),
-      values: multiLineData // Array de objetos con {label, data}
-    };
-  }
-  
-  // Fallback para una sola columna
-  return {
-    labels: data.map((_, index) => `Item ${index + 1}`),
-    values: data.map(row => row[keys[0]])
   };
-};
 
   // Función para generar colores automáticamente
   const generateColors = (count) => {
@@ -202,217 +203,217 @@ const processChartData = (data) => {
     }
   };
 
-// Función mejorada para renderizar un gráfico
-const renderChart = (grafico) => {
-  console.log('Renderizando gráfico:', {
-    id: grafico.id,
-    title: grafico.title,
-    type: grafico.chart_type,
-    values: grafico.values,
-    labels: grafico.labels
-  });
+  // Función mejorada para renderizar un gráfico
+  const renderChart = (grafico) => {
+    console.log('Renderizando gráfico:', {
+      id: grafico.id,
+      title: grafico.title,
+      type: grafico.chart_type,
+      values: grafico.values,
+      labels: grafico.labels
+    });
 
-  if (!grafico.values || !grafico.labels) {
-    return <div className="text-gray-500">No hay datos para mostrar</div>;
-  }
-
-  // Parsear datos de forma segura
-  let values = safeJsonParse(grafico.values, []);
-  let labels = safeJsonParse(grafico.labels, []);
-
-  console.log('Datos parseados:', { values, labels, type: grafico.chart_type });
-
-  if (!values || !labels || (Array.isArray(values) && values.length === 0)) {
-    return <div className="text-gray-500">No hay datos válidos para mostrar</div>;
-  }
-
-  let chartData;
-
-  // Configurar datos según el tipo de gráfico
-  switch (grafico.chart_type) {
-    case 'bar':
-      chartData = {
-        labels: labels,
-        datasets: [{
-          label: 'Datos',
-          data: values,
-          backgroundColor: 'rgba(54, 162, 235, 0.5)',
-          borderColor: 'rgba(54, 162, 235, 1)',
-          borderWidth: 1
-        }]
-      };
-      return <Bar data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
-
-    case 'pie':
-      const pieColors = generateColors(Array.isArray(values) ? values.length : 1);
-      chartData = {
-        labels: labels,
-        datasets: [{
-          data: values,
-          backgroundColor: pieColors.backgrounds,
-          borderColor: pieColors.borders,
-          borderWidth: 1
-        }]
-      };
-      return <Pie data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
-
-    case 'line':
-      chartData = {
-        labels: labels,
-        datasets: [{
-          label: 'Datos',
-          data: values,
-          fill: false,
-          borderColor: 'rgba(75, 192, 192, 1)',
-          backgroundColor: 'rgba(75, 192, 192, 0.2)',
-          tension: 0.1
-        }]
-      };
-      return <Line data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
-
-case 'multi-line':
-  let datasets = [];
-  
-  console.log('Procesando multi-line con values:', values);
-  
-  // CORRECCIÓN ESPECÍFICA: Manejar el formato real de los datos
-  if (Array.isArray(values) && values.length > 0) {
-    // Caso 1: Array de objetos con estructura {name, data} (formato real)
-    if (typeof values[0] === 'object' && values[0] !== null && 'name' in values[0] && 'data' in values[0]) {
-      const colors = generateColors(values.length);
-      datasets = values.map((series, index) => ({
-        label: series.name, // Usar 'name' en lugar de 'label'
-        data: Array.isArray(series.data) ? series.data : [],
-        borderColor: colors.borders[index],
-        backgroundColor: colors.backgrounds[index],
-        fill: false,
-        tension: 0.1
-      }));
+    if (!grafico.values || !grafico.labels) {
+      return <div className="text-gray-500">No hay datos para mostrar</div>;
     }
-    // Caso 2: Array de objetos con estructura {label, data} (formato esperado anteriormente)
-    else if (typeof values[0] === 'object' && values[0] !== null && 'label' in values[0] && 'data' in values[0]) {
-      const colors = generateColors(values.length);
-      datasets = values.map((series, index) => ({
-        label: series.label,
-        data: Array.isArray(series.data) ? series.data : [],
-        borderColor: colors.borders[index],
-        backgroundColor: colors.backgrounds[index],
-        fill: false,
-        tension: 0.1
-      }));
-    } 
-    // Caso 3: Array de arrays [[data1], [data2], ...]
-    else if (Array.isArray(values[0])) {
-      const colors = generateColors(values.length);
-      datasets = values.map((series, index) => ({
-        label: `Serie ${index + 1}`,
-        data: series,
-        borderColor: colors.borders[index],
-        backgroundColor: colors.backgrounds[index],
-        fill: false,
-        tension: 0.1
-      }));
+
+    // Parsear datos de forma segura
+    let values = safeJsonParse(grafico.values, []);
+    let labels = safeJsonParse(grafico.labels, []);
+
+    console.log('Datos parseados:', { values, labels, type: grafico.chart_type });
+
+    if (!values || !labels || (Array.isArray(values) && values.length === 0)) {
+      return <div className="text-gray-500">No hay datos válidos para mostrar</div>;
     }
-    // Caso 4: Array simple de valores [1, 2, 3, ...] - convertir a dataset único
-    else if (typeof values[0] === 'number' || typeof values[0] === 'string') {
-      datasets = [{
-        label: 'Datos',
-        data: values,
-        borderColor: 'rgba(75, 192, 192, 1)',
-        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-        fill: false,
-        tension: 0.1
-      }];
-    }
-  }
-  // Si values es un objeto (no array), intentar procesarlo
-  else if (values && typeof values === 'object' && !Array.isArray(values)) {
-    const keys = Object.keys(values);
-    console.log('Values es objeto con keys:', keys);
-    
-    // Si las keys son nombres de series y los valores son arrays
-    if (keys.length > 0) {
-      const colors = generateColors(keys.length);
-      datasets = keys.map((key, index) => {
-        const seriesData = values[key];
-        return {
-          label: key,
-          data: Array.isArray(seriesData) ? seriesData : [seriesData],
-          borderColor: colors.borders[index],
-          backgroundColor: colors.backgrounds[index],
-          fill: false,
-          tension: 0.1
+
+    let chartData;
+
+    // Configurar datos según el tipo de gráfico
+    switch (grafico.chart_type) {
+      case 'bar':
+        chartData = {
+          labels: labels,
+          datasets: [{
+            label: 'Datos',
+            data: values,
+            backgroundColor: 'rgba(54, 162, 235, 0.5)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+          }]
         };
-      });
-    }
-  }
-  // Si values es un string que parece JSON, intentar parsearlo nuevamente
-  else if (typeof values === 'string') {
-    try {
-      const reparsedValues = JSON.parse(values);
-      console.log('Re-parsed values:', reparsedValues);
-      
-      if (Array.isArray(reparsedValues)) {
-        const colors = generateColors(reparsedValues.length);
-        datasets = reparsedValues.map((series, index) => {
-          // Manejar tanto formato {name, data} como {label, data}
-          const seriesLabel = series.name || series.label || `Serie ${index + 1}`;
-          const seriesData = series.data || (Array.isArray(series) ? series : [series]);
-          
-          return {
-            label: seriesLabel,
-            data: Array.isArray(seriesData) ? seriesData : [seriesData],
-            borderColor: colors.borders[index],
-            backgroundColor: colors.backgrounds[index],
+        return <Bar data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
+
+      case 'pie':
+        const pieColors = generateColors(Array.isArray(values) ? values.length : 1);
+        chartData = {
+          labels: labels,
+          datasets: [{
+            data: values,
+            backgroundColor: pieColors.backgrounds,
+            borderColor: pieColors.borders,
+            borderWidth: 1
+          }]
+        };
+        return <Pie data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
+
+      case 'line':
+        chartData = {
+          labels: labels,
+          datasets: [{
+            label: 'Datos',
+            data: values,
             fill: false,
+            borderColor: 'rgba(75, 192, 192, 1)',
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
             tension: 0.1
-          };
-        });
-      }
-    } catch (e) {
-      console.error('Error re-parsing values:', e);
+          }]
+        };
+        return <Line data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
+
+      case 'multi-line':
+        let datasets = [];
+        
+        console.log('Procesando multi-line con values:', values);
+        
+        // CORRECCIÓN ESPECÍFICA: Manejar el formato real de los datos
+        if (Array.isArray(values) && values.length > 0) {
+          // Caso 1: Array de objetos con estructura {name, data} (formato real)
+          if (typeof values[0] === 'object' && values[0] !== null && 'name' in values[0] && 'data' in values[0]) {
+            const colors = generateColors(values.length);
+            datasets = values.map((series, index) => ({
+              label: series.name, // Usar 'name' en lugar de 'label'
+              data: Array.isArray(series.data) ? series.data : [],
+              borderColor: colors.borders[index],
+              backgroundColor: colors.backgrounds[index],
+              fill: false,
+              tension: 0.1
+            }));
+          }
+          // Caso 2: Array de objetos con estructura {label, data} (formato esperado anteriormente)
+          else if (typeof values[0] === 'object' && values[0] !== null && 'label' in values[0] && 'data' in values[0]) {
+            const colors = generateColors(values.length);
+            datasets = values.map((series, index) => ({
+              label: series.label,
+              data: Array.isArray(series.data) ? series.data : [],
+              borderColor: colors.borders[index],
+              backgroundColor: colors.backgrounds[index],
+              fill: false,
+              tension: 0.1
+            }));
+          } 
+          // Caso 3: Array de arrays [[data1], [data2], ...]
+          else if (Array.isArray(values[0])) {
+            const colors = generateColors(values.length);
+            datasets = values.map((series, index) => ({
+              label: `Serie ${index + 1}`,
+              data: series,
+              borderColor: colors.borders[index],
+              backgroundColor: colors.backgrounds[index],
+              fill: false,
+              tension: 0.1
+            }));
+          }
+          // Caso 4: Array simple de valores [1, 2, 3, ...] - convertir a dataset único
+          else if (typeof values[0] === 'number' || typeof values[0] === 'string') {
+            datasets = [{
+              label: 'Datos',
+              data: values,
+              borderColor: 'rgba(75, 192, 192, 1)',
+              backgroundColor: 'rgba(75, 192, 192, 0.2)',
+              fill: false,
+              tension: 0.1
+            }];
+          }
+        }
+        // Si values es un objeto (no array), intentar procesarlo
+        else if (values && typeof values === 'object' && !Array.isArray(values)) {
+          const keys = Object.keys(values);
+          console.log('Values es objeto con keys:', keys);
+          
+          // Si las keys son nombres de series y los valores son arrays
+          if (keys.length > 0) {
+            const colors = generateColors(keys.length);
+            datasets = keys.map((key, index) => {
+              const seriesData = values[key];
+              return {
+                label: key,
+                data: Array.isArray(seriesData) ? seriesData : [seriesData],
+                borderColor: colors.borders[index],
+                backgroundColor: colors.backgrounds[index],
+                fill: false,
+                tension: 0.1
+              };
+            });
+          }
+        }
+        // Si values es un string que parece JSON, intentar parsearlo nuevamente
+        else if (typeof values === 'string') {
+          try {
+            const reparsedValues = JSON.parse(values);
+            console.log('Re-parsed values:', reparsedValues);
+            
+            if (Array.isArray(reparsedValues)) {
+              const colors = generateColors(reparsedValues.length);
+              datasets = reparsedValues.map((series, index) => {
+                // Manejar tanto formato {name, data} como {label, data}
+                const seriesLabel = series.name || series.label || `Serie ${index + 1}`;
+                const seriesData = series.data || (Array.isArray(series) ? series : [series]);
+                
+                return {
+                  label: seriesLabel,
+                  data: Array.isArray(seriesData) ? seriesData : [seriesData],
+                  borderColor: colors.borders[index],
+                  backgroundColor: colors.backgrounds[index],
+                  fill: false,
+                  tension: 0.1
+                };
+              });
+            }
+          } catch (e) {
+            console.error('Error re-parsing values:', e);
+          }
+        }
+
+        console.log('Datasets generados:', datasets);
+
+        if (datasets.length === 0) {
+          return (
+            <div className="text-red-500">
+              <div>No se pudieron procesar los datos del gráfico multi-línea</div>
+              <div className="text-xs mt-2 bg-gray-100 p-2 rounded overflow-auto max-h-32">
+                <div>Datos recibidos:</div>
+                <pre className="text-xs">{JSON.stringify(values, null, 2)}</pre>
+              </div>
+            </div>
+          );
+        }
+
+        chartData = {
+          labels: labels,
+          datasets: datasets
+        };
+        
+        return <Line data={chartData} options={{ 
+          responsive: true, 
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top'
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }} />;
+
+      default:
+        return <div className="text-gray-500">Tipo de gráfico no soportado: {grafico.chart_type}</div>;
     }
-  }
-
-  console.log('Datasets generados:', datasets);
-
-  if (datasets.length === 0) {
-    return (
-      <div className="text-red-500">
-        <div>No se pudieron procesar los datos del gráfico multi-línea</div>
-        <div className="text-xs mt-2 bg-gray-100 p-2 rounded overflow-auto max-h-32">
-          <div>Datos recibidos:</div>
-          <pre className="text-xs">{JSON.stringify(values, null, 2)}</pre>
-        </div>
-      </div>
-    );
-  }
-
-  chartData = {
-    labels: labels,
-    datasets: datasets
   };
-  
-  return <Line data={chartData} options={{ 
-    responsive: true, 
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        display: true,
-        position: 'top'
-      }
-    },
-    scales: {
-      y: {
-        beginAtZero: true
-      }
-    }
-  }} />;
-
-    default:
-      return <div className="text-gray-500">Tipo de gráfico no soportado: {grafico.chart_type}</div>;
-  }
-};
 
   // Función para eliminar un dashboard
   const deleteDashboard = async (dashboardId) => {
@@ -438,109 +439,241 @@ case 'multi-line':
     }
   };
 
+  // Función para obtener gráficos filtrados por pestaña
+  const getFilteredCharts = () => {
+    const allCharts = [];
+    
+    dashboards.forEach((dashboard) => {
+      const graficos = Array.isArray(dashboard.graficos) ? dashboard.graficos : [dashboard.graficos];
+      graficos.forEach((grafico) => {
+        if (grafico) {
+          allCharts.push({ dashboard, grafico });
+        }
+      });
+    });
+
+    if (activeTab === 'all') {
+      return allCharts;
+    }
+    
+    return allCharts.filter(({ grafico }) => grafico.chart_type === activeTab);
+  };
+
+  // Función para obtener tipos únicos de gráficos
+  const getUniqueChartTypes = () => {
+    const types = new Set();
+    dashboards.forEach((dashboard) => {
+      const graficos = Array.isArray(dashboard.graficos) ? dashboard.graficos : [dashboard.graficos];
+      graficos.forEach((grafico) => {
+        if (grafico && grafico.chart_type) {
+          types.add(grafico.chart_type);
+        }
+      });
+    });
+    return Array.from(types);
+  };
+
   useEffect(() => {
     fetchDashboards();
   }, []);
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-lg">Cargando dashboards...</div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+        <div className="flex justify-center items-center h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+            <div className="text-lg text-gray-600">Cargando dashboards...</div>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4 m-4">
-        <div className="text-red-800">
-          <strong>Error:</strong> {error}
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
+        <div className="max-w-md mx-auto mt-20">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 shadow-lg">
+            <div className="text-red-800">
+              <strong>Error:</strong> {error}
+            </div>
+            <button 
+              onClick={fetchDashboards}
+              className="mt-4 w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Reintentar
+            </button>
+          </div>
         </div>
-        <button 
-          onClick={fetchDashboards}
-          className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-        >
-          Reintentar
-        </button>
       </div>
     );
   }
 
   if (dashboards.length === 0) {
     return (
-      <div className="text-center py-12">
-        <div className="text-gray-500 text-lg">
-          No tienes gráficos guardados en tus dashboards
-        </div>
-        <div className="text-gray-400 mt-2">
-          Crea gráficos con el agente de IA y guárdalos para verlos aquí
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+        <div className="flex justify-center items-center h-screen">
+          <div className="text-center bg-white rounded-lg shadow-lg p-8 max-w-md mx-auto">
+            <div className="text-6xl mb-4">📊</div>
+            <div className="text-gray-600 text-lg mb-2">
+              No tienes gráficos guardados en tus dashboards
+            </div>
+            <div className="text-gray-400">
+              Crea gráficos con el agente de IA y guárdalos para verlos aquí
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
+  const filteredCharts = getFilteredCharts();
+  const chartTypes = getUniqueChartTypes();
+
   return (
-    <div className="container mx-auto px-4 py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">Mis Dashboards</h1>
-        <button 
-          onClick={fetchDashboards}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-        >
-          Refrescar
-        </button>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      {/* Patrón de fondo decorativo */}
+      <div className="absolute inset-0 opacity-5">
+        <div className="absolute inset-0" style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236366f1' fill-opacity='0.4'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+        }}></div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {dashboards.map((dashboard) => {
-          // Corregir el acceso a los gráficos - pueden ser un array o un objeto
-          const graficos = Array.isArray(dashboard.graficos) ? dashboard.graficos : [dashboard.graficos];
-          
-          return graficos.map((grafico) => {
-            if (!grafico) {
-              return (
-                <div key={`${dashboard.id}-no-chart`} className="bg-white rounded-lg shadow-md p-6">
-                  <div className="text-red-500">Gráfico no encontrado</div>
-                </div>
-              );
-            }
+      <div className="relative z-10 container mx-auto px-4 py-6">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-800 mb-2">📊 Mis Dashboards</h1>
+            <p className="text-gray-600">Visualiza y gestiona tus gráficos de datos</p>
+          </div>
+          <button 
+            onClick={fetchDashboards}
+            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+          >
+            🔄 Refrescar
+          </button>
+        </div>
 
-            return (
-              <div key={`${dashboard.id}-${grafico.id}`} className="bg-white rounded-lg shadow-md p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <h3 className="text-xl font-semibold text-gray-800">
-                    {grafico.title || 'Sin título'}
-                  </h3>
+        {/* Pestañas de navegación */}
+        <div className="mb-8">
+          <div className="bg-white rounded-lg shadow-lg p-1 inline-flex space-x-1">
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
+                activeTab === 'all'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg'
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+              }`}
+            >
+              📈 Todos ({filteredCharts.length})
+            </button>
+            
+            {chartTypes.map((type) => {
+              const count = getFilteredCharts().filter(({ grafico }) => grafico.chart_type === type).length;
+              const icon = {
+                'bar': '📊',
+                'pie': '🥧',
+                'line': '📈',
+                'multi-line': '📊'
+              }[type] || '📊';
+              
+              const label = {
+                'bar': 'Barras',
+                'pie': 'Circular',
+                'line': 'Líneas',
+                'multi-line': 'Multi-Líneas'
+              }[type] || type;
+
+              return (
+                <button
+                  key={type}
+                  onClick={() => setActiveTab(type)}
+                  className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
+                    activeTab === type
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg'
+                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                  }`}
+                >
+                  {icon} {label} ({count})
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Grid de gráficos */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredCharts.map(({ dashboard, grafico }) => (
+            <div 
+              key={`${dashboard.id}-${grafico.id}`} 
+              className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 overflow-hidden border border-gray-100"
+            >
+              {/* Header de la tarjeta */}
+              <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <h3 className="text-xl font-semibold text-gray-800 mb-1">
+                      {grafico.title || 'Sin título'}
+                    </h3>
+                    <div className="flex items-center space-x-4 text-sm text-gray-500">
+                      <span className="flex items-center">
+                        {grafico.chart_type === 'bar' && '📊'}
+                        {grafico.chart_type === 'pie' && '🥧'}
+                        {grafico.chart_type === 'line' && '📈'}
+                        {grafico.chart_type === 'multi-line' && '📊'}
+                        <span className="ml-1 capitalize">{grafico.chart_type}</span>
+                      </span>
+                      <span className="flex items-center">
+                        📅 {new Date(grafico.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                  
                   <div className="flex space-x-2">
                     <button
                       onClick={() => refreshChart(grafico.id, grafico.sql)}
                       disabled={refreshingChart === grafico.id}
-                      className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50 transition-colors"
+                      className="px-3 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-md hover:shadow-lg"
+                      title="Actualizar datos"
                     >
-                      {refreshingChart === grafico.id ? 'Actualizando...' : 'Actualizar'}
+                      {refreshingChart === grafico.id ? '⏳' : '🔄'}
                     </button>
                     <button
                       onClick={() => deleteDashboard(dashboard.id)}
-                      className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                      className="px-3 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-all duration-300 shadow-md hover:shadow-lg"
+                      title="Eliminar gráfico"
                     >
-                      Eliminar
+                      🗑️
                     </button>
                   </div>
                 </div>
-                
-                <div className="mb-4">
-                  <span className="text-sm text-gray-500">
-                    Tipo: {grafico.chart_type} | Creado: {new Date(grafico.created_at).toLocaleDateString()}
-                  </span>
-                </div>
+              </div>
 
+              {/* Contenido del gráfico */}
+              <div className="p-6">
                 <div className="h-64 relative">
                   {renderChart(grafico)}
                 </div>
               </div>
-            );
-          });
-        })}
+            </div>
+          ))}
+        </div>
+
+        {/* Mensaje cuando no hay gráficos en la pestaña activa */}
+        {filteredCharts.length === 0 && activeTab !== 'all' && (
+          <div className="text-center py-16">
+            <div className="bg-white rounded-xl shadow-lg p-8 max-w-md mx-auto">
+              <div className="text-6xl mb-4">🔍</div>
+              <div className="text-gray-600 text-lg mb-2">
+                No hay gráficos de tipo "{activeTab}"
+              </div>
+              <div className="text-gray-400">
+                Crea más gráficos o cambia a otra pestaña
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
