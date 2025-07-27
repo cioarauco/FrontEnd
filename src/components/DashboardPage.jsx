@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../App';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement, PointElement, LineElement } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
+import { FaTree } from 'react-icons/fa';
 
 // Registrar componentes de Chart.js
 ChartJS.register(
@@ -479,7 +480,7 @@ const DashboardPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <div className="min-h-screen bg-[url('/camioncito.png')] bg-cover bg-fixed bg-bottom p-6">
         <div className="flex justify-center items-center h-screen">
           <div className="text-center">
             <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mx-auto mb-4"></div>
@@ -492,7 +493,7 @@ const DashboardPage = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
+      <div className="min-h-screen bg-[url('/camioncito.png')] bg-cover bg-fixed bg-bottom p-6">
         <div className="max-w-md mx-auto mt-20">
           <div className="bg-red-50 border border-red-200 rounded-lg p-6 shadow-lg">
             <div className="text-red-800">
@@ -512,11 +513,39 @@ const DashboardPage = () => {
 
   if (dashboards.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <div className="min-h-screen bg-[url('/camioncito.png')] bg-cover bg-fixed bg-bottom p-6">
+        {/* HEADER DE NAVEGACIÓN */}
+        <div className="flex justify-between items-center bg-white/90 dark:bg-[#1c2e1f]/90 px-6 py-3 rounded-xl shadow mb-6 max-w-4xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
+          <div className="flex items-center gap-2">
+            <FaTree className="text-2xl text-[#D2C900]" />
+            <span className="text-xl font-serif font-bold text-[#5E564D] dark:text-white">
+              Tronix Forest Assistant
+            </span>
+          </div>
+          <div className="flex gap-4 text-sm font-medium">
+            <a href="/chat" className="text-[#5E564D] dark:text-white hover:underline">
+              🌲 Chat Tronix
+            </a>
+            <a href="/dashboards" className="text-[#D2C900] dark:text-[#D2C900] hover:underline font-bold">
+              📊 Mis Dashboards
+            </a>
+            <a href="/panel-ejecutivo" className="text-[#5E564D] dark:text-white hover:underline">
+              📈 Panel Ejecutivo
+            </a>
+            <a
+              href="/"
+              onClick={() => supabase.auth.signOut()}
+              className="text-[#5E564D] dark:text-red-400 hover:underline"
+            >
+              🚪 Cerrar sesión
+            </a>
+          </div>
+        </div>
+
         <div className="flex justify-center items-center h-screen">
-          <div className="text-center bg-white rounded-lg shadow-lg p-8 max-w-md mx-auto">
+          <div className="text-center bg-white/90 dark:bg-[#1c2e1f]/90 rounded-lg shadow-lg p-8 max-w-md mx-auto backdrop-blur-sm">
             <div className="text-6xl mb-4">📊</div>
-            <div className="text-gray-600 text-lg mb-2">
+            <div className="text-gray-600 dark:text-white text-lg mb-2">
               No tienes gráficos guardados en tus dashboards
             </div>
             <div className="text-gray-400">
@@ -532,38 +561,61 @@ const DashboardPage = () => {
   const chartTypes = getUniqueChartTypes();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      {/* Patrón de fondo decorativo */}
-      <div className="absolute inset-0 opacity-5">
-        <div className="absolute inset-0" style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236366f1' fill-opacity='0.4'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-        }}></div>
+    <div className="min-h-screen bg-[url('/camioncito.png')] bg-cover bg-fixed bg-bottom p-6">
+      {/* HEADER DE NAVEGACIÓN */}
+      <div className="flex justify-between items-center bg-white/90 dark:bg-[#1c2e1f]/90 px-6 py-3 rounded-xl shadow mb-6 max-w-6xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
+        <div className="flex items-center gap-2">
+          <FaTree className="text-2xl text-[#D2C900]" />
+          <span className="text-xl font-serif font-bold text-[#5E564D] dark:text-white">
+            Tronix Forest Assistant
+          </span>
+        </div>
+        <div className="flex gap-4 text-sm font-medium">
+          <a href="/chat" className="text-[#5E564D] dark:text-white hover:underline">
+            🌲 Chat Tronix
+          </a>
+          <a href="/dashboards" className="text-[#D2C900] dark:text-[#D2C900] hover:underline font-bold">
+            📊 Mis Dashboards
+          </a>
+          <a href="/panel-ejecutivo" className="text-[#5E564D] dark:text-white hover:underline">
+            📈 Panel Ejecutivo
+          </a>
+          <a
+            href="/"
+            onClick={() => supabase.auth.signOut()}
+            className="text-[#5E564D] dark:text-red-400 hover:underline"
+          >
+            🚪 Cerrar sesión
+          </a>
+        </div>
       </div>
 
-      <div className="relative z-10 container mx-auto px-4 py-6">
+      {/* CONTENEDOR PRINCIPAL */}
+      <div className="bg-white/90 dark:bg-[#1c2e1f]/90 rounded-xl shadow-lg max-w-6xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
+        
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
           <div>
-            <h1 className="text-4xl font-bold text-gray-800 mb-2">📊 Mis Dashboards</h1>
-            <p className="text-gray-600">Visualiza y gestiona tus gráficos de datos</p>
+            <h1 className="text-4xl font-bold text-gray-800 dark:text-white mb-2">📊 Mis Dashboards</h1>
+            <p className="text-gray-600 dark:text-gray-300">Visualiza y gestiona tus gráficos de datos</p>
           </div>
           <button 
             onClick={fetchDashboards}
-            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+            className="px-6 py-3 bg-gradient-to-r from-[#D2C900] to-[#bcae00] text-black rounded-lg hover:from-[#bcae00] hover:to-[#a89800] transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
           >
             🔄 Refrescar
           </button>
         </div>
 
         {/* Pestañas de navegación */}
-        <div className="mb-8">
-          <div className="bg-white rounded-lg shadow-lg p-1 inline-flex space-x-1">
+        <div className="p-6 pb-0">
+          <div className="bg-gray-100 dark:bg-gray-800 rounded-lg shadow-lg p-1 inline-flex space-x-1">
             <button
               onClick={() => setActiveTab('all')}
               className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
                 activeTab === 'all'
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg'
-                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                  ? 'bg-gradient-to-r from-[#D2C900] to-[#bcae00] text-black shadow-lg'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
               📈 Todos ({filteredCharts.length})
@@ -591,8 +643,8 @@ const DashboardPage = () => {
                   onClick={() => setActiveTab(type)}
                   className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
                     activeTab === type
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg'
-                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                      ? 'bg-gradient-to-r from-[#D2C900] to-[#bcae00] text-black shadow-lg'
+                      : 'text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
                   {icon} {label} ({count})
@@ -603,63 +655,63 @@ const DashboardPage = () => {
         </div>
 
         {/* Grid de gráficos */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredCharts.map(({ dashboard, grafico }) => (
-            <div 
-              key={`${dashboard.id}-${grafico.id}`} 
-              className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 overflow-hidden border border-gray-100"
-            >
-              {/* Header de la tarjeta */}
-              <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <h3 className="text-xl font-semibold text-gray-800 mb-1">
-                      {grafico.title || 'Sin título'}
-                    </h3>
-                    <div className="flex items-center space-x-4 text-sm text-gray-500">
-                      <span className="flex items-center">
-                        {grafico.chart_type === 'bar' && '📊'}
-                        {grafico.chart_type === 'pie' && '🥧'}
-                        {grafico.chart_type === 'line' && '📈'}
-                        {grafico.chart_type === 'multi-line' && '📊'}
-                        <span className="ml-1 capitalize">{grafico.chart_type}</span>
-                      </span>
-                      <span className="flex items-center">
-                        📅 {new Date(grafico.created_at).toLocaleDateString()}
-                      </span>
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredCharts.map(({ dashboard, grafico }) => (
+              <div 
+                key={`${dashboard.id}-${grafico.id}`} 
+                className="bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 overflow-hidden border border-gray-100 dark:border-gray-700"
+              >
+                {/* Header de la tarjeta */}
+                <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 px-6 py-4 border-b border-gray-200 dark:border-gray-600">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-1">
+                        {grafico.title || 'Sin título'}
+                      </h3>
+                      <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+                        <span className="flex items-center">
+                          {grafico.chart_type === 'bar' && '📊'}
+                          {grafico.chart_type === 'pie' && '🥧'}
+                          {grafico.chart_type === 'line' && '📈'}
+                          {grafico.chart_type === 'multi-line' && '📊'}
+                          <span className="ml-1 capitalize">{grafico.chart_type}</span>
+                        </span>
+                        <span className="flex items-center">
+                          📅 {new Date(grafico.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => refreshChart(grafico.id, grafico.sql)}
+                        disabled={refreshingChart === grafico.id}
+                        className="px-3 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-md hover:shadow-lg"
+                        title="Actualizar datos"
+                      >
+                        {refreshingChart === grafico.id ? '⏳' : '🔄'}
+                      </button>
+                      <button
+                        onClick={() => deleteDashboard(dashboard.id)}
+                        className="px-3 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-all duration-300 shadow-md hover:shadow-lg"
+                        title="Eliminar gráfico"
+                      >
+                        🗑️
+                      </button>
                     </div>
                   </div>
-                  
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => refreshChart(grafico.id, grafico.sql)}
-                      disabled={refreshingChart === grafico.id}
-                      className="px-3 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-md hover:shadow-lg"
-                      title="Actualizar datos"
-                    >
-                      {refreshingChart === grafico.id ? '⏳' : '🔄'}
-                    </button>
-                    <button
-                      onClick={() => deleteDashboard(dashboard.id)}
-                      className="px-3 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-all duration-300 shadow-md hover:shadow-lg"
-                      title="Eliminar gráfico"
-                    >
-                      🗑️
-                    </button>
+                </div>
+
+                {/* Contenido del gráfico */}
+                <div className="p-6">
+                  <div className="h-64 relative">
+                    {renderChart(grafico)}
                   </div>
                 </div>
               </div>
-
-              {/* Contenido del gráfico */}
-              <div className="p-6">
-                <div className="h-64 relative">
-                  {renderChart(grafico)}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
+            ))}
+          </div>
         {/* Mensaje cuando no hay gráficos en la pestaña activa */}
         {filteredCharts.length === 0 && activeTab !== 'all' && (
           <div className="text-center py-16">
