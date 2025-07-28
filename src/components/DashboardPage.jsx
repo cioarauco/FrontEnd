@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../App';
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement, PointElement, LineElement } from 'chart.js';
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement, PointElement, LineElement, Filler } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
 import { FaTree } from 'react-icons/fa';
 
@@ -14,7 +14,8 @@ ChartJS.register(
   Legend,
   ArcElement,
   PointElement,
-  LineElement
+  LineElement,
+  Filler
 );
 
 const DashboardPage = () => {
@@ -22,7 +23,38 @@ const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshingChart, setRefreshingChart] = useState(null);
-  const [activeTab, setActiveTab] = useState('all'); // Nueva state para pestañas
+  const [activeTab, setActiveTab] = useState('all');
+
+  // 🎨 Paleta optimizada para fondo naranja - colores que contrastan bien (igual que ChartInline.jsx)
+  const COLORS = [
+    "#1e40af", // blue-700
+    "#059669", // emerald-600
+    "#7c3aed", // violet-600
+    "#0891b2", // cyan-600
+    "#be185d", // pink-700
+    "#047857", // emerald-700
+    "#4338ca", // indigo-700
+  ];
+
+  // 🌟 Paleta alternativa más suave y moderna
+  const SOFT_COLORS = [
+    "#3b82f6", // blue-500
+    "#06b6d4", // cyan-500  
+    "#8b5cf6", // violet-500
+    "#10b981", // emerald-500
+    "#f43f5e", // rose-500
+    "#6366f1", // indigo-500
+    "#84cc16", // lime-500
+  ];
+
+  // Utilidad para agregar transparencia a un color HEX (igual que ChartInline.jsx)
+  const withAlpha = (hex, alpha) => {
+    const [r, g, b] = hex
+      .replace("#", "")
+      .match(/.{1,2}/g)
+      .map((x) => parseInt(x, 16));
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
 
   // Función para obtener los dashboards del usuario
   const fetchDashboards = async () => {
@@ -158,36 +190,6 @@ const DashboardPage = () => {
     };
   };
 
-  // Función para generar colores automáticamente
-  const generateColors = (count) => {
-    const colors = [
-      'rgba(255, 99, 132, 0.8)',
-      'rgba(54, 162, 235, 0.8)',
-      'rgba(255, 205, 86, 0.8)',
-      'rgba(75, 192, 192, 0.8)',
-      'rgba(153, 102, 255, 0.8)',
-      'rgba(255, 159, 64, 0.8)',
-      'rgba(199, 199, 199, 0.8)',
-      'rgba(83, 102, 255, 0.8)',
-    ];
-    
-    const borderColors = [
-      'rgba(255, 99, 132, 1)',
-      'rgba(54, 162, 235, 1)',
-      'rgba(255, 205, 86, 1)',
-      'rgba(75, 192, 192, 1)',
-      'rgba(153, 102, 255, 1)',
-      'rgba(255, 159, 64, 1)',
-      'rgba(199, 199, 199, 1)',
-      'rgba(83, 102, 255, 1)',
-    ];
-    
-    return {
-      backgrounds: Array.from({ length: count }, (_, i) => colors[i % colors.length]),
-      borders: Array.from({ length: count }, (_, i) => borderColors[i % borderColors.length])
-    };
-  };
-
   // Función para limpiar y parsear datos JSON de forma segura
   const safeJsonParse = (jsonString, fallback = null) => {
     if (!jsonString) return fallback;
@@ -204,7 +206,80 @@ const DashboardPage = () => {
     }
   };
 
-  // Función mejorada para renderizar un gráfico
+  // ⚙️ Opciones mejoradas para mejor contraste (igual que ChartInline.jsx)
+  const getChartOptions = (title) => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    layout: { padding: 16 },
+    plugins: {
+      legend: {
+        position: "top",
+        labels: {
+          color: "#1f2937", // gris muy oscuro para mejor legibilidad
+          font: { size: 13, weight: "600" },
+          boxWidth: 18,
+          padding: 20,
+          usePointStyle: true,
+        },
+      },
+      tooltip: {
+        backgroundColor: "#111827f0", // casi negro con transparencia
+        titleColor: "#ffffff",
+        bodyColor: "#e5e7eb",
+        titleFont: { size: 14, weight: "700" },
+        bodyFont: { size: 13 },
+        borderColor: "#374151",
+        borderWidth: 1,
+        cornerRadius: 8,
+        padding: 12,
+        displayColors: true,
+        boxPadding: 6,
+      },
+      title: {
+        display: !!title,
+        text: title,
+        color: "#111827", // negro para máximo contraste
+        font: { size: 18, weight: "700" },
+        padding: { bottom: 20 },
+      },
+    },
+    scales: {
+      x: {
+        grid: {
+          color: withAlpha("#374151", 0.3), // gris oscuro sutil
+          lineWidth: 1,
+        },
+        ticks: {
+          color: "#374151", // gris oscuro para buena legibilidad
+          font: { size: 12, weight: "500" },
+          maxRotation: 45,
+          minRotation: 0,
+          autoSkip: true,
+        },
+        border: {
+          color: "#374151",
+          width: 1,
+        },
+      },
+      y: {
+        grid: {
+          color: withAlpha("#374151", 0.2),
+          lineWidth: 1,
+        },
+        ticks: {
+          color: "#374151",
+          font: { size: 12, weight: "500" },
+          beginAtZero: true,
+        },
+        border: {
+          color: "#374151",
+          width: 1,
+        },
+      },
+    },
+  });
+
+  // Función mejorada para renderizar un gráfico con estilos sincronizados
   const renderChart = (grafico) => {
     console.log('Renderizando gráfico:', {
       id: grafico.id,
@@ -229,6 +304,23 @@ const DashboardPage = () => {
     }
 
     let chartData;
+    const options = getChartOptions(grafico.title);
+
+    // ⬇️ Wrapper con fondo sutil para mejor contraste (igual que ChartInline.jsx)
+    const ChartWrapper = ({ children }) => (
+      <div 
+        style={{ 
+          height: "100%",
+          backgroundColor: "rgba(255, 255, 255, 0.9)", // fondo blanco semi-transparente
+          borderRadius: "12px",
+          padding: "16px",
+          boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+          border: "1px solid rgba(229, 231, 235, 0.5)"
+        }}
+      >
+        {children}
+      </div>
+    );
 
     // Configurar datos según el tipo de gráfico
     switch (grafico.chart_type) {
@@ -238,25 +330,34 @@ const DashboardPage = () => {
           datasets: [{
             label: 'Datos',
             data: values,
-            backgroundColor: 'rgba(54, 162, 235, 0.5)',
-            borderColor: 'rgba(54, 162, 235, 1)',
-            borderWidth: 1
+            borderColor: COLORS[0],
+            backgroundColor: withAlpha(COLORS[0], 0.4),
+            borderWidth: 3
           }]
         };
-        return <Bar data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
+        return (
+          <ChartWrapper>
+            <Bar data={chartData} options={options} />
+          </ChartWrapper>
+        );
 
       case 'pie':
-        const pieColors = generateColors(Array.isArray(values) ? values.length : 1);
+        const pieBackgrounds = COLORS.slice(0, values.length).map(color => withAlpha(color, 0.8));
+        const pieBorders = COLORS.slice(0, values.length);
         chartData = {
           labels: labels,
           datasets: [{
             data: values,
-            backgroundColor: pieColors.backgrounds,
-            borderColor: pieColors.borders,
-            borderWidth: 1
+            backgroundColor: pieBackgrounds,
+            borderColor: pieBorders,
+            borderWidth: 2
           }]
         };
-        return <Pie data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
+        return (
+          <ChartWrapper>
+            <Pie data={chartData} options={options} />
+          </ChartWrapper>
+        );
 
       case 'line':
         chartData = {
@@ -264,13 +365,23 @@ const DashboardPage = () => {
           datasets: [{
             label: 'Datos',
             data: values,
-            fill: false,
-            borderColor: 'rgba(75, 192, 192, 1)',
-            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-            tension: 0.1
+            borderColor: COLORS[0],
+            backgroundColor: withAlpha(COLORS[0], 0.2),
+            pointBackgroundColor: COLORS[0],
+            pointBorderColor: "#ffffff",
+            pointBorderWidth: 2,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            fill: true,
+            tension: 0.4,
+            borderWidth: 3,
           }]
         };
-        return <Line data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
+        return (
+          <ChartWrapper>
+            <Line data={chartData} options={options} />
+          </ChartWrapper>
+        );
 
       case 'multi-line':
         let datasets = [];
@@ -281,38 +392,53 @@ const DashboardPage = () => {
         if (Array.isArray(values) && values.length > 0) {
           // Caso 1: Array de objetos con estructura {name, data} (formato real)
           if (typeof values[0] === 'object' && values[0] !== null && 'name' in values[0] && 'data' in values[0]) {
-            const colors = generateColors(values.length);
             datasets = values.map((series, index) => ({
-              label: series.name, // Usar 'name' en lugar de 'label'
+              label: series.name,
               data: Array.isArray(series.data) ? series.data : [],
-              borderColor: colors.borders[index],
-              backgroundColor: colors.backgrounds[index],
-              fill: false,
-              tension: 0.1
+              borderColor: COLORS[index % COLORS.length],
+              backgroundColor: withAlpha(COLORS[index % COLORS.length], 0.2),
+              pointBackgroundColor: COLORS[index % COLORS.length],
+              pointBorderColor: "#ffffff",
+              pointBorderWidth: 2,
+              pointRadius: 5,
+              pointHoverRadius: 7,
+              fill: true,
+              tension: 0.4,
+              borderWidth: 3,
             }));
           }
           // Caso 2: Array de objetos con estructura {label, data} (formato esperado anteriormente)
           else if (typeof values[0] === 'object' && values[0] !== null && 'label' in values[0] && 'data' in values[0]) {
-            const colors = generateColors(values.length);
             datasets = values.map((series, index) => ({
               label: series.label,
               data: Array.isArray(series.data) ? series.data : [],
-              borderColor: colors.borders[index],
-              backgroundColor: colors.backgrounds[index],
-              fill: false,
-              tension: 0.1
+              borderColor: COLORS[index % COLORS.length],
+              backgroundColor: withAlpha(COLORS[index % COLORS.length], 0.2),
+              pointBackgroundColor: COLORS[index % COLORS.length],
+              pointBorderColor: "#ffffff",
+              pointBorderWidth: 2,
+              pointRadius: 5,
+              pointHoverRadius: 7,
+              fill: true,
+              tension: 0.4,
+              borderWidth: 3,
             }));
           } 
           // Caso 3: Array de arrays [[data1], [data2], ...]
           else if (Array.isArray(values[0])) {
-            const colors = generateColors(values.length);
             datasets = values.map((series, index) => ({
               label: `Serie ${index + 1}`,
               data: series,
-              borderColor: colors.borders[index],
-              backgroundColor: colors.backgrounds[index],
-              fill: false,
-              tension: 0.1
+              borderColor: COLORS[index % COLORS.length],
+              backgroundColor: withAlpha(COLORS[index % COLORS.length], 0.2),
+              pointBackgroundColor: COLORS[index % COLORS.length],
+              pointBorderColor: "#ffffff",
+              pointBorderWidth: 2,
+              pointRadius: 5,
+              pointHoverRadius: 7,
+              fill: true,
+              tension: 0.4,
+              borderWidth: 3,
             }));
           }
           // Caso 4: Array simple de valores [1, 2, 3, ...] - convertir a dataset único
@@ -320,10 +446,16 @@ const DashboardPage = () => {
             datasets = [{
               label: 'Datos',
               data: values,
-              borderColor: 'rgba(75, 192, 192, 1)',
-              backgroundColor: 'rgba(75, 192, 192, 0.2)',
-              fill: false,
-              tension: 0.1
+              borderColor: COLORS[0],
+              backgroundColor: withAlpha(COLORS[0], 0.2),
+              pointBackgroundColor: COLORS[0],
+              pointBorderColor: "#ffffff",
+              pointBorderWidth: 2,
+              pointRadius: 5,
+              pointHoverRadius: 7,
+              fill: true,
+              tension: 0.4,
+              borderWidth: 3,
             }];
           }
         }
@@ -334,16 +466,21 @@ const DashboardPage = () => {
           
           // Si las keys son nombres de series y los valores son arrays
           if (keys.length > 0) {
-            const colors = generateColors(keys.length);
             datasets = keys.map((key, index) => {
               const seriesData = values[key];
               return {
                 label: key,
                 data: Array.isArray(seriesData) ? seriesData : [seriesData],
-                borderColor: colors.borders[index],
-                backgroundColor: colors.backgrounds[index],
-                fill: false,
-                tension: 0.1
+                borderColor: COLORS[index % COLORS.length],
+                backgroundColor: withAlpha(COLORS[index % COLORS.length], 0.2),
+                pointBackgroundColor: COLORS[index % COLORS.length],
+                pointBorderColor: "#ffffff",
+                pointBorderWidth: 2,
+                pointRadius: 5,
+                pointHoverRadius: 7,
+                fill: true,
+                tension: 0.4,
+                borderWidth: 3,
               };
             });
           }
@@ -355,7 +492,6 @@ const DashboardPage = () => {
             console.log('Re-parsed values:', reparsedValues);
             
             if (Array.isArray(reparsedValues)) {
-              const colors = generateColors(reparsedValues.length);
               datasets = reparsedValues.map((series, index) => {
                 // Manejar tanto formato {name, data} como {label, data}
                 const seriesLabel = series.name || series.label || `Serie ${index + 1}`;
@@ -364,10 +500,16 @@ const DashboardPage = () => {
                 return {
                   label: seriesLabel,
                   data: Array.isArray(seriesData) ? seriesData : [seriesData],
-                  borderColor: colors.borders[index],
-                  backgroundColor: colors.backgrounds[index],
-                  fill: false,
-                  tension: 0.1
+                  borderColor: COLORS[index % COLORS.length],
+                  backgroundColor: withAlpha(COLORS[index % COLORS.length], 0.2),
+                  pointBackgroundColor: COLORS[index % COLORS.length],
+                  pointBorderColor: "#ffffff",
+                  pointBorderWidth: 2,
+                  pointRadius: 5,
+                  pointHoverRadius: 7,
+                  fill: true,
+                  tension: 0.4,
+                  borderWidth: 3,
                 };
               });
             }
@@ -395,21 +537,11 @@ const DashboardPage = () => {
           datasets: datasets
         };
         
-        return <Line data={chartData} options={{ 
-          responsive: true, 
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              display: true,
-              position: 'top'
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true
-            }
-          }
-        }} />;
+        return (
+          <ChartWrapper>
+            <Line data={chartData} options={options} />
+          </ChartWrapper>
+        );
 
       default:
         return <div className="text-gray-500">Tipo de gráfico no soportado: {grafico.chart_type}</div>;
