@@ -449,10 +449,10 @@ const refreshChart = async (chartId, sql) => {
             const reparsedValues = JSON.parse(values);
             console.log('Re-parsed values:', reparsedValues);
             
-            if (Array.isArray(values) && values.length > 0) {
-              if (typeof values[0] === 'object' && values[0] !== null && 'name' in values[0] && 'data' in values[0]) {
-                const colors = generateColors(values.length);
-                datasets = values.map((series, index) => ({
+            if (Array.isArray(reparsedValues) && reparsedValues.length > 0) {
+              if (typeof reparsedValues[0] === 'object' && reparsedValues[0] !== null && 'name' in reparsedValues[0] && 'data' in reparsedValues[0]) {
+                const colors = generateColors(reparsedValues.length);
+                datasets = reparsedValues.map((series, index) => ({
                   label: series.name,
                   data: Array.isArray(series.data) ? series.data : [],
                   borderColor: colors.borders[index],
@@ -461,7 +461,8 @@ const refreshChart = async (chartId, sql) => {
                   tension: 0.1
                 }));
               }
-              } catch (e) {
+            }
+          } catch (e) {
             console.error('Error re-parsing values:', e);
           }
         }
@@ -749,7 +750,6 @@ const refreshChart = async (chartId, sql) => {
             })}
           </div>
         </div>
-
         {/* Grid de gráficos */}
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
