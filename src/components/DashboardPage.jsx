@@ -156,6 +156,54 @@ const refreshChart = async (chartId, sql) => {
     const keys = Object.keys(firstRow);
     
     console.log('Processing chart data:', { data, keys });
+    // Detecta automáticamente formato apilado y lo pivotea a multi-line (dinámico)
+    if (
+      data &&
+      data.length > 0 &&
+      Object.keys(data[0]).length === 3
+    ) {
+      // Detecta columnas: una será el eje X, otra la "serie", otra el "valor"
+      const keys = Object.keys(data[0]);
+      // Busca la columna "valor" (la única que es siempre numérica)
+      const valorKey = keys.find(
+        k => typeof data[0][k] === "number" ||
+             data.every(row => !isNaN(Number(row[k])))
+      );
+      if (!valorKey) {
+        // Si no encuentra columna de valor numérico, no pivotea
+        return null;
+      }
+    
+      // Las otras dos son label (eje x) y serie (líneas)
+      const [labelKey, serieKey] = keys.filter(k => k !== valorKey);
+    
+      // Obtiene todas las labels (eje x) únicas y ordenadas
+      const labels = [...new Set(data.map(row => row[labelKey]))].sort();
+    
+      // Obtiene todas las series únicas
+      const series = [...new Set(data.map(row => row[serieKey]))];
+    
+      // Crea array de values para multi-line
+      const values = series.map(serie => ({
+        label: serie,
+        data: labels.map(label => {
+          const row = data.find(
+            r => r[labelKey] === label && r[serieKey] === serie
+          );
+          return row ? Number(row[valorKey]) : 0;
+        })
+      }));
+    
+      // Si más de una serie, es multi-line
+      if (values.length > 1) {
+        return {
+          labels,
+          values
+        };
+      }
+      // Si solo una, lo dejamos como gráfico simple (por si acaso)
+    }
+
     
     // Si hay exactamente 2 columnas, usar una como labels y otra como values (para gráficos simples)
     if (keys.length === 2) {
