@@ -55,6 +55,11 @@ const DashboardPage = () => {
       .map((x) => parseInt(x, 16));
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
+  return {
+    backgrounds: Array.from({ length: count }, (_, i) => withAlpha(COLORS[i % COLORS.length], 0.4)),
+    borders: Array.from({ length: count }, (_, i) => COLORS[i % COLORS.length])
+  };
+};
 
   // Función para obtener los dashboards del usuario
   const fetchDashboards = async () => {
@@ -304,7 +309,8 @@ const DashboardPage = () => {
     }
 
     let chartData;
-    const options = getChartOptions(grafico.title);
+    // Función para obtener opciones de gráfico unificadas
+
 
     // ⬇️ Wrapper con fondo sutil para mejor contraste (igual que ChartInline.jsx)
     const ChartWrapper = ({ children }) => (
@@ -337,7 +343,7 @@ const DashboardPage = () => {
         };
         return (
           <ChartWrapper>
-            <Bar data={chartData} options={options} />
+            <Bar data={chartData} options={getChartOptions(grafico.title)} />
           </ChartWrapper>
         );
 
@@ -838,6 +844,14 @@ const DashboardPage = () => {
                 {/* Contenido del gráfico */}
                 <div className="p-6">
                   <div className="h-64 relative">
+                    <div style={{
+                      height: "100%",
+                      backgroundColor: "rgba(255, 255, 255, 0.9)",
+                      borderRadius: "12px",
+                      padding: "16px",
+                      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                      border: "1px solid rgba(229, 231, 235, 0.5)"
+                    }}>
                     {renderChart(grafico)}
                   </div>
                 </div>
