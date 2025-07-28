@@ -564,6 +564,54 @@ const refreshChart = async (chartId, sql) => {
           />
         </div>
       );
+      case 'mixto':
+      // Para gráficos mixtos: cada dataset tiene un type ("bar" o "line")
+      if (!Array.isArray(values)) {
+        return <div className="text-gray-500">Datos mixtos inválidos</div>;
+      }
+
+      // Paleta de colores, puedes usar tu función generateColors o el array COLORS si lo tienes global
+      const colors = generateColors(values.length);
+
+      chartData = {
+        labels: labels,
+        datasets: values.map((serie, idx) => ({
+          label: serie.name,
+          type: serie.type, // "bar" o "line"
+          data: serie.data,
+          borderColor: colors.borders[idx % colors.borders.length],
+          backgroundColor:
+            serie.type === "bar"
+              ? colors.backgrounds[idx % colors.backgrounds.length]
+              : colors.backgrounds[idx % colors.backgrounds.length] + "80", // un poco más transparente
+          fill: false,
+          tension: 0.3,
+          order: serie.type === "line" ? 1 : 2,
+        }))
+      };
+
+      return (
+        <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
+          <Bar
+            key={chartKey}
+            data={chartData}
+            options={{
+              ...getBaseOptions(),
+              plugins: {
+                legend: {
+                  display: true,
+                  position: 'top'
+                }
+              },
+              scales: {
+                y: { beginAtZero: true }
+              }
+            }}
+            redraw={true}
+          />
+        </div>
+      );
+
       default:
         return <div className="text-gray-500">Tipo de gráfico no soportado: {grafico.chart_type}</div>;
     }
