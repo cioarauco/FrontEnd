@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FaUserCircle, FaTree, FaTrashAlt } from 'react-icons/fa';
 import ChartFromSQL from '../components/ChartFromSQL';
 import ChartInline from '../components/ChartInline';
-import MixedChartInline from '../components/MixedChartInline'; // 🆕 Nuevo componente
 
 // 🌐 ENDPOINT DEL AGENTE
 const WEBHOOK_URL =
@@ -107,48 +106,6 @@ export default function ChatPage() {
   };
 
   /* --------------------------------------------------
-   *  🆕  DETECTORES PARA GRÁFICOS MIXTOS
-   * -------------------------------------------------- */
-  
-  // Detecta si es un gráfico mixto basado en la estructura de datos
-  const isMixedChart = (data) => {
-    return (
-      data &&
-      typeof data === 'object' &&
-      (
-        // Formato 1: datasets array con diferentes tipos
-        (Array.isArray(data.datasets) && 
-         data.datasets.some(d => d.type) && 
-         new Set(data.datasets.map(d => d.type || 'bar')).size > 1) ||
-        
-        // Formato 2: chart_type es "mixed" o "combo"
-        ['mixed', 'combo', 'combination'].includes(data.chart_type?.toLowerCase()) ||
-        
-        // Formato 3: múltiples series con diferentes tipos
-        (data.series && Array.isArray(data.series) && 
-         data.series.some(s => s.type) && 
-         new Set(data.series.map(s => s.type)).size > 1) ||
-         
-        // Formato 4: valores múltiples con tipos especificados
-        (data.values && typeof data.values === 'object' && 
-         Object.keys(data.values).length > 1 && 
-         data.chart_types && Array.isArray(data.chart_types))
-      )
-    );
-  };
-
-  // Detecta si es un gráfico simple tradicional
-  const isSimpleChart = (data) => {
-    return (
-      data &&
-      typeof data === 'object' &&
-      data.labels &&
-      (data.values || data.datasets) &&
-      !isMixedChart(data)
-    );
-  };
-
-  /* --------------------------------------------------
    *  🖼️  PARSE & RENDER DE CADA MENSAJE
    * -------------------------------------------------- */
   const extractIframe = (text) => {
@@ -176,10 +133,8 @@ export default function ChatPage() {
 
     // 1.b) Si viene como objeto anidado (response_0.chart_payload)
     if (
-      parsedContent?.response_0?.chart_payload &&
-      (parsedContent.response_0.chart_payload.labels || 
-       parsedContent.response_0.chart_payload.datasets ||
-       parsedContent.response_0.chart_payload.series)
+      parsedContent?.response_0?.chart_payload?.labels &&
+      parsedContent.response_0.chart_payload.labels.length
     ) {
       parsedContent = parsedContent.response_0.chart_payload;
     }
@@ -190,8 +145,11 @@ export default function ChatPage() {
     const asIframe =
       typeof parsedContent === 'string' ? extractIframe(parsedContent) : null;
 
-    const isMixed = isMixedChart(parsedContent);
-    const isSimple = isSimpleChart(parsedContent);
+    const isChartPayload =
+      parsedContent &&
+      typeof parsedContent === 'object' &&
+      parsedContent.labels &&
+      parsedContent.values;
 
     /* --------------------------------------------------
      *  🖌️  ESTILOS & METADATOS COMUNES
@@ -222,7 +180,7 @@ export default function ChatPage() {
             <span className="font-semibold">{isUser ? 'Tú' : 'Tronix'}</span>
           </div>
 
-          {/* ----- 📈 Chart IFRAME / MIXED / SIMPLE / Texto ----- */}
+          {/* ----- 📈 Chart INLINE / Iframe / Texto ----- */}
           {asIframe ? (
             <>
               <div
@@ -233,43 +191,13 @@ export default function ChatPage() {
               />
               <ChartFromSQL grafico_id={asIframe.grafico_id} />
             </>
-          ) : isMixed ? (
+          ) : isChartPayload ? (
             <>
-              {/* Explicación textual para gráfico mixto */}
+              {/* Explicación textual */}
               {parsedContent.respuesta && (
                 <div className="text-sm mt-2">{parsedContent.respuesta}</div>
               )}
-              {/* 🆕 Gráfico mixto */}
-              <MixedChartInline data={parsedContent} />
-              <button
-                onClick={async () => {
-                  const { data, error } = await supabase.from('graficos_mixtos').insert({
-                    title: parsedContent.title || 'Gráfico Mixto',
-                    chart_config: parsedContent, // Guardamos toda la configuración
-                    sql: parsedContent.sql,
-                    created_at: new Date().toISOString(),
-                  }).select('id').single();
-
-                  if (error) {
-                    alert('Error guardando gráfico mixto: ' + error.message);
-                    return;
-                  }
-
-                  alert('Gráfico mixto guardado en Supabase.');
-                  guardarGraficoEnDashboard(data.id, 'mixed');
-                }}
-                className="mt-3 bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-xs shadow"  
-              >
-                💾 Guardar gráfico mixto en mis Dashboards
-              </button>
-            </>
-          ) : isSimple ? (
-            <>
-              {/* Explicación textual para gráfico simple */}
-              {parsedContent.respuesta && (
-                <div className="text-sm mt-2">{parsedContent.respuesta}</div>
-              )}
-              {/* Gráfico simple tradicional */}
+              {/* Gráfico inline */}
               <ChartInline data={parsedContent} />
               <button
                 onClick={async () => {
@@ -287,8 +215,9 @@ export default function ChatPage() {
                   }
 
                   alert('Gráfico guardado en Supabase.');
-                  guardarGraficoEnDashboard(data.id, 'simple');
-                }}
+
+                  guardarGraficoEnDashboard(data.id);
+               }}
                 className="mt-3 bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs shadow"  
               >
                 💾 Guardar gráfico en mis Dashboards
@@ -342,30 +271,42 @@ export default function ChatPage() {
       </motion.div>
     );
   };
+  async function guardarGraficoEnSupabase(grafico) {
+  const { data, error } = await supabase.from('graficos').insert({
+    title: grafico.title,
+    chart_type: grafico.chart_type,
+    labels: grafico.labels,
+    values: grafico.values,
+    sql: grafico.sql
+  });
 
-  // 🆕 Función actualizada para manejar diferentes tipos de gráficos
-  const guardarGraficoEnDashboard = async (graficoId, chartType = 'simple') => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  if (error) {
+    alert('Error guardando gráfico: ' + error.message);
+  } else {
+    alert('Gráfico guardado correctamente.');
+  }
+}
+  const guardarGraficoEnDashboard = async (graficoId) => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    if (!user) {
-      alert('Debes iniciar sesión para guardar en el dashboard.');
-      return;
-    }
+  if (!user) {
+    alert('Debes iniciar sesión para guardar en el dashboard.');
+    return;
+  }
 
-    const { error } = await supabase.from('dashboard').insert({
-      grafico_id: graficoId,
-      chart_type: chartType, // 🆕 Especificamos el tipo
-      user_id: user.id,
-    });
+  const { error } = await supabase.from('dashboard').insert({
+    grafico_id: graficoId,
+    user_id: user.id,
+  });
 
-    if (error) {
-      alert('Error guardando en dashboard: ' + error.message);
-    } else {
-      alert('Gráfico añadido al dashboard correctamente.');
-    }
-  };
+  if (error) {
+    alert('Error guardando en dashboard: ' + error.message);
+  } else {
+    alert('Gráfico añadido al dashboard correctamente.');
+  }
+};
 
   /* --------------------------------------------------
    *  🌳  UI PRINCIPAL
