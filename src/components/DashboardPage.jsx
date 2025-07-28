@@ -321,7 +321,6 @@ const validateSQLStructure = (results) => {
   };
 };
 
-export { refreshChart, processChartData, debugChartData, validateSQLStructure };
   // Función para generar colores automáticamente
   const generateColors = (count) => {
     const colors = [
@@ -958,4 +957,5 @@ export { refreshChart, processChartData, debugChartData, validateSQLStructure };
     </div>
   );
 };
+export { refreshChart, processChartData, debugChartData, validateSQLStructure };
 export default DashboardPage;
