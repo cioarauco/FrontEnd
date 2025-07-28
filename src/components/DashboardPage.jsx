@@ -841,41 +841,47 @@ const DashboardPage = () => {
                   </div>
                 </div>
 
-                {/* Contenido del gráfico */}
-                <div className="p-6">
-                  <div className="h-64 relative">
-                    <div style={{
-                      height: "100%",
-                      backgroundColor: "rgba(255, 255, 255, 0.9)",
-                      borderRadius: "12px",
-                      padding: "16px",
-                      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-                      border: "1px solid rgba(229, 231, 235, 0.5)"
-                    }}>
-                    {renderChart(grafico)}
-                  </div>
-                </div>
-              </div>
-            ))}
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+  {filteredCharts.map(({ dashboard, grafico }) => (
+    <div 
+      key={`${dashboard.id}-${grafico.id}`} 
+      className="bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 overflow-hidden border border-gray-100 dark:border-gray-700"
+    >
+      {/* Header de la tarjeta */}
+      {/* ... */}
+      
+      {/* Contenido del gráfico */}
+      <div className="p-6">
+        <div className="h-64 relative">
+          <div style={{
+            height: "100%",
+            backgroundColor: "rgba(255, 255, 255, 0.9)",
+            borderRadius: "12px",
+            padding: "16px",
+            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+            border: "1px solid rgba(229, 231, 235, 0.5)"
+          }}>
+            {renderChart(grafico)}
           </div>
-        {/* Mensaje cuando no hay gráficos en la pestaña activa */}
-        {filteredCharts.length === 0 && activeTab !== 'all' && (
-          <div className="text-center py-16">
-            <div className="bg-white rounded-xl shadow-lg p-8 max-w-md mx-auto">
-              <div className="text-6xl mb-4">🔍</div>
-              <div className="text-gray-600 text-lg mb-2">
-                No hay gráficos de tipo "{activeTab}"
-              </div>
-              <div className="text-gray-400">
-                Crea más gráficos o cambia a otra pestaña
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+        </div>
       </div>
     </div>
-  );
-};
+  ))}
+
+  {/* Este condicional debe quedar DENTRO del grid o envuelto */}
+  {filteredCharts.length === 0 && activeTab !== 'all' && (
+    <div className="text-center py-16 col-span-full">
+      <div className="bg-white rounded-xl shadow-lg p-8 max-w-md mx-auto">
+        <div className="text-6xl mb-4">🔍</div>
+        <div className="text-gray-600 text-lg mb-2">
+          No hay gráficos de tipo "{activeTab}"
+        </div>
+        <div className="text-gray-400">
+          Crea más gráficos o cambia a otra pestaña
+        </div>
+      </div>
+    </div>
+  )}
+</div>  {/* Cierra correctamente el grid */}
 
 export default DashboardPage;
