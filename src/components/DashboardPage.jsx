@@ -246,25 +246,29 @@ const refreshChart = async (chartId, sql) => {
   // Función para generar colores automáticamente
   const generateColors = (count) => {
     const colors = [
-      'rgba(255, 99, 132, 0.8)',
-      'rgba(54, 162, 235, 0.8)',
-      'rgba(255, 205, 86, 0.8)',
-      'rgba(75, 192, 192, 0.8)',
-      'rgba(153, 102, 255, 0.8)',
-      'rgba(255, 159, 64, 0.8)',
-      'rgba(199, 199, 199, 0.8)',
-      'rgba(83, 102, 255, 0.8)',
+     'rgba(34, 139, 34, 0.8)',    // Verde bosque principal
+    ' rgba(46, 125, 50, 0.8)',    // Verde pino
+    ' rgba(76, 175, 80, 0.8)',    // Verde claro
+     'rgba(139, 69, 19, 0.8)',    // Marrón corteza
+     'rgba(160, 82, 45, 0.8)',    // Marrón tronco
+     'rgba(205, 133, 63, 0.8)',   // Marrón arena
+     'rgba(85, 107, 47, 0.8)',    // Verde oliva
+     'rgba(107, 142, 35, 0.8)',   // Verde lima oliva
+     'rgba(72, 61, 139, 0.8)',    // Azul profundo (cielo)
+     'rgba(30, 144, 255, 0.8)',   // Azul cielo
     ];
     
     const borderColors = [
-      'rgba(255, 99, 132, 1)',
-      'rgba(54, 162, 235, 1)',
-      'rgba(255, 205, 86, 1)',
-      'rgba(75, 192, 192, 1)',
-      'rgba(153, 102, 255, 1)',
-      'rgba(255, 159, 64, 1)',
-      'rgba(199, 199, 199, 1)',
-      'rgba(83, 102, 255, 1)',
+      'rgba(34, 139, 34, 1)',
+      'rgba(46, 125, 50, 1)',
+      'rgba(76, 175, 80, 1)',
+      'rgba(139, 69, 19, 1)',
+      'rgba(160, 82, 45, 1)',
+      'rgba(205, 133, 63, 1)',
+      'rgba(85, 107, 47, 1)',
+      'rgba(107, 142, 35, 1)',
+      'rgba(72, 61, 139, 1)',
+      'rgba(30, 144, 255, 1)',
     ];
     
     return {
