@@ -23,6 +23,7 @@ const DashboardPage = () => {
   const [error, setError] = useState(null);
   const [refreshingChart, setRefreshingChart] = useState(null);
   const [activeTab, setActiveTab] = useState('all'); // Nueva state para pestañas
+  const [chartRenderKeys, setChartRenderKeys] = useState({});
 
   // Función para obtener los dashboards del usuario
   const fetchDashboards = async () => {
@@ -100,7 +101,6 @@ const refreshChart = async (chartId, sql) => {
 
     console.log('📊 Datos obtenidos del SQL:', data);
 
-    // Verificar que tenemos datos
     if (!data || data.length === 0) {
       alert('La consulta SQL no devolvió datos. Verifica tu consulta.');
       return;
@@ -110,13 +110,13 @@ const refreshChart = async (chartId, sql) => {
     const processedData = processChartData(data);
     console.log('🎯 Datos procesados:', processedData);
 
-    // Actualizar el gráfico en la base de datos con marca de tiempo para forzar cambio
+    // Actualizar el gráfico en la base de datos
     const { error: updateError } = await supabase
       .from('graficos')
       .update({
-        values: JSON.stringify(processedData.values), // Asegurar que sea string
-        labels: JSON.stringify(processedData.labels), // Asegurar que sea string
-        updated_at: new Date().toISOString() // Agregar timestamp para forzar cambio
+        values: JSON.stringify(processedData.values),
+        labels: JSON.stringify(processedData.labels),
+        updated_at: new Date().toISOString()
       })
       .eq('id', chartId);
 
@@ -126,13 +126,17 @@ const refreshChart = async (chartId, sql) => {
 
     console.log('✅ Gráfico actualizado en BD');
 
-    // Refrescar los dashboards - IMPORTANTE: limpiar estado primero
-    setDashboards([]); // Limpiar para forzar re-render
-    await new Promise(resolve => setTimeout(resolve, 100)); // Pequeño delay
-    await fetchDashboards();
-    
-    // Mostrar confirmación
-    alert('¡Gráfico actualizado exitosamente!');
+    // CLAVE: Forzar re-render del gráfico específico
+    setChartRenderKeys(prev => ({
+      ...prev,
+      [chartId]: Date.now() // Nueva key única para este gráfico
+    }));
+
+    // Esperar un momento y luego refrescar datos
+    setTimeout(async () => {
+      await fetchDashboards();
+      alert('¡Gráfico actualizado exitosamente!');
+    }, 500);
     
   } catch (err) {
     console.error('❌ Error al actualizar gráfico:', err);
@@ -235,108 +239,130 @@ const refreshChart = async (chartId, sql) => {
 
   // Función mejorada para renderizar un gráfico
   const renderChart = (grafico) => {
-    console.log('Renderizando gráfico:', {
+    console.log('🎨 Renderizando gráfico:', {
       id: grafico.id,
       title: grafico.title,
       type: grafico.chart_type,
       values: grafico.values,
-      labels: grafico.labels
-    });
+      labels: grafico.labels,
+      updated_at: grafico.updated_at
+  });
 
-    if (!grafico.values || !grafico.labels) {
-      return <div className="text-gray-500">No hay datos para mostrar</div>;
-    }
+  if (!grafico.values || !grafico.labels) {
+    return <div className="text-gray-500">No hay datos para mostrar</div>;
+  }
 
-    // Parsear datos de forma segura
-    let values = safeJsonParse(grafico.values, []);
-    let labels = safeJsonParse(grafico.labels, []);
+  // Parsear datos de forma segura
+  let values = safeJsonParse(grafico.values, []);
+  let labels = safeJsonParse(grafico.labels, []);
 
-    console.log('Datos parseados:', { values, labels, type: grafico.chart_type });
-    const chartKey = `chart-${grafico.id}-${grafico.updated_at || Date.now()}`;
+  console.log('📋 Datos parseados:', { values, labels, type: grafico.chart_type });
 
-    if (!values || !labels || (Array.isArray(values) && values.length === 0)) {
-      return <div className="text-gray-500">No hay datos válidos para mostrar</div>;
-    }
+  if (!values || !labels || (Array.isArray(values) && values.length === 0)) {
+    return <div className="text-gray-500">No hay datos válidos para mostrar</div>;
+  }
 
-    let chartData;
-
-    // Configurar datos según el tipo de gráfico
-    switch (grafico.chart_type) {
-      case 'bar':
-        chartData = {
-          labels: labels,
-          datasets: [{
-            label: 'Datos',
-            data: values,
-            backgroundColor: 'rgba(54, 162, 235, 0.5)',
-            borderColor: 'rgba(54, 162, 235, 1)',
-            borderWidth: 1
-          }]
-        };
-        return (
-          <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
-            <Bar 
-              data={chartData} 
-              options={{ 
-                responsive: true, 
-                maintainAspectRatio: false,
-                animation: {
-                  duration: 1000
-                }
-              }} 
-            />
-          </div>
-        );
+  // Key única que GARANTIZA re-render
+  const forceRenderKey = chartRenderKeys[grafico.id] || 0;
+  const chartKey = `chart-${grafico.id}-${forceRenderKey}-${grafico.updated_at}`;
   
-      case 'pie':
-        const pieColors = generateColors(Array.isArray(values) ? values.length : 1);
-        chartData = {
-          labels: labels,
-          datasets: [{
-            data: values,
-            backgroundColor: pieColors.backgrounds,
-            borderColor: pieColors.borders,
-            borderWidth: 1
-          }]
-        };
-        return (
-          <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
-            <Pie 
-              data={chartData} 
-              options={{ 
-                responsive: true, 
-                maintainAspectRatio: false,
-                animation: {
-                  duration: 1000
-                }
-              }} 
-            />
+  console.log('🔑 Chart key:', chartKey);
+
+  let chartData;
+
+  // Función para crear opciones base con destrucción completa
+  const getBaseOptions = () => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    // FORZAR destrucción completa del canvas
+    animation: {
+      duration: 0, // Sin animación para evitar conflictos
+      onComplete: function() {
+        console.log('🎬 Chart render completed for:', grafico.id);
+      }
+    },
+    // Forzar redibujado
+    plugins: {
+      legend: {
+        display: true
+      }
+    },
+    // IMPORTANTE: Evitar cache de Chart.js
+    elements: {
+      point: {
+        radius: function(context) {
+          // Cambiar radius dinámicamente para forzar redibujado
+          return 3 + (forceRenderKey % 2);
+        }
+      }
+    }
+  });
+
+  // Configurar datos según el tipo de gráfico
+  switch (grafico.chart_type) {
+    case 'bar':
+      chartData = {
+        labels: labels,
+        datasets: [{
+          label: 'Datos',
+          data: values,
+          backgroundColor: `rgba(54, 162, 235, ${0.5 + (forceRenderKey % 100) * 0.001})`, // Cambio sutil para forzar update
+          borderColor: 'rgba(54, 162, 235, 1)',
+          borderWidth: 1
+        }]
+      };
+      return (
+        <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
+          <Bar 
+            key={chartKey} // Key también en el componente Chart
+            data={chartData} 
+            options={getBaseOptions()}
+            redraw={true} // Forzar redibujado
+          />
         </div>
       );
 
-      case 'line':
-        chartData = {
-          labels: labels,
-          datasets: [{
-            label: 'Datos',
-            data: values,
-            fill: false,
-            borderColor: 'rgba(75, 192, 192, 1)',
-            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-            tension: 0.1
-          }]
-        };
-        return (
-          <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
-            <Line 
-              data={chartData} 
-              options={{ 
-              responsive: true, 
-              maintainAspectRatio: false,
-              animation: {
-                duration: 1000
-              }
-            }} 
+    case 'pie':
+      const pieColors = generateColors(Array.isArray(values) ? values.length : 1);
+      chartData = {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: pieColors.backgrounds,
+          borderColor: pieColors.borders,
+          borderWidth: 1
+        }]
+      };
+      return (
+        <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
+          <Pie 
+            key={chartKey}
+            data={chartData} 
+            options={getBaseOptions()}
+            redraw={true}
+          />
+        </div>
+      );
+
+    case 'line':
+      chartData = {
+        labels: labels,
+        datasets: [{
+          label: 'Datos',
+          data: values,
+          fill: false,
+          borderColor: 'rgba(75, 192, 192, 1)',
+          backgroundColor: 'rgba(75, 192, 192, 0.2)',
+          tension: 0.1
+        }]
+      };
+      return (
+        <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
+          <Line 
+            key={chartKey}
+            data={chartData} 
+            options={getBaseOptions()}
+            redraw={true}
           />
         </div>
       );
@@ -423,23 +449,18 @@ const refreshChart = async (chartId, sql) => {
             const reparsedValues = JSON.parse(values);
             console.log('Re-parsed values:', reparsedValues);
             
-            if (Array.isArray(reparsedValues)) {
-              const colors = generateColors(reparsedValues.length);
-              datasets = reparsedValues.map((series, index) => {
-                // Manejar tanto formato {name, data} como {label, data}
-                const seriesLabel = series.name || series.label || `Serie ${index + 1}`;
-                const seriesData = series.data || (Array.isArray(series) ? series : [series]);
-                
-                return {
-                  label: seriesLabel,
-                  data: Array.isArray(seriesData) ? seriesData : [seriesData],
+            if (Array.isArray(values) && values.length > 0) {
+              if (typeof values[0] === 'object' && values[0] !== null && 'name' in values[0] && 'data' in values[0]) {
+                const colors = generateColors(values.length);
+                datasets = values.map((series, index) => ({
+                  label: series.name,
+                  data: Array.isArray(series.data) ? series.data : [],
                   borderColor: colors.borders[index],
                   backgroundColor: colors.backgrounds[index],
                   fill: false,
                   tension: 0.1
-                };
-              });
-            }
+                }));
+              }
           } catch (e) {
             console.error('Error re-parsing values:', e);
           }
@@ -467,13 +488,10 @@ const refreshChart = async (chartId, sql) => {
         return (
           <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
             <Line 
+              key={chartKey}
               data={chartData} 
               options={{ 
-              responsive: true, 
-              maintainAspectRatio: false,
-              animation: {
-                duration: 1000
-              },
+                ...getBaseOptions(),
               plugins: {
                 legend: {
                   display: true,
