@@ -883,5 +883,9 @@ const DashboardPage = () => {
     </div>
   )}
 </div>  {/* Cierra correctamente el grid */}
+                </div> {/* Cierra el contenedor blanco */}
+            </div>   {/* Cierra el min-h-screen */}
+          );
+        };
 
 export default DashboardPage;
