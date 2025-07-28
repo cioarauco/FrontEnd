@@ -87,110 +87,241 @@ const DashboardPage = () => {
 
   // Función para actualizar un gráfico ejecutando su SQL
 // Función mejorada para actualizar un gráfico ejecutando su SQL
+// 🔄 FUNCIÓN OPTIMIZADA PARA ACTUALIZAR GRÁFICOS
 const refreshChart = async (chartId, sql) => {
   try {
     setRefreshingChart(chartId);
-    console.log(`🔄 Actualizando gráfico ${chartId} con SQL:`, sql);
+    console.log(`🔄 Iniciando actualización del gráfico ${chartId}`);
+    console.log(`📝 SQL a ejecutar:`, sql);
     
-    // Ejecutar la query SQL
-    const { data, error } = await supabase.rpc('execute_sql', { query: sql });
+    // 1️⃣ Ejecutar la consulta SQL
+    const { data: sqlResults, error: sqlError } = await supabase.rpc('execute_sql', { 
+      query: sql.trim() 
+    });
     
-    if (error) {
-      throw new Error('Error al ejecutar SQL: ' + error.message);
+    if (sqlError) {
+      console.error('❌ Error ejecutando SQL:', sqlError);
+      throw new Error(`Error en la consulta SQL: ${sqlError.message}`);
     }
 
-    console.log('📊 Datos obtenidos del SQL:', data);
+    console.log('📊 Resultados del SQL:', sqlResults);
 
-    if (!data || data.length === 0) {
-      alert('La consulta SQL no devolvió datos. Verifica tu consulta.');
+    // 2️⃣ Validar que hay datos
+    if (!sqlResults || sqlResults.length === 0) {
+      alert('⚠️ La consulta SQL no devolvió datos. Verifica tu consulta y los datos en la base de datos.');
       return;
     }
 
-    // Procesar los datos del SQL
-    const processedData = processChartData(data);
-    console.log('🎯 Datos procesados:', processedData);
+    // 3️⃣ Procesar los datos para el gráfico
+    const processedData = processChartData(sqlResults);
+    console.log('🎯 Datos procesados para el gráfico:', processedData);
 
-    // Actualizar el gráfico en la base de datos
+    // 4️⃣ Validar datos procesados
+    if (!processedData.labels.length || !processedData.values.length) {
+      throw new Error('Los datos procesados están vacíos. Revisa la estructura de tu consulta SQL.');
+    }
+
+    // 5️⃣ Actualizar el gráfico en la base de datos
+    const updatePayload = {
+      labels: JSON.stringify(processedData.labels),
+      values: JSON.stringify(processedData.values),
+      updated_at: new Date().toISOString()
+    };
+
+    console.log('💾 Actualizando BD con payload:', updatePayload);
+
     const { error: updateError } = await supabase
       .from('graficos')
-      .update({
-        values: JSON.stringify(processedData.values),
-        labels: JSON.stringify(processedData.labels),
-        updated_at: new Date().toISOString()
-      })
+      .update(updatePayload)
       .eq('id', chartId);
 
     if (updateError) {
-      throw new Error('Error al actualizar gráfico: ' + updateError.message);
+      console.error('❌ Error actualizando gráfico:', updateError);
+      throw new Error(`Error al actualizar el gráfico: ${updateError.message}`);
     }
 
-    console.log('✅ Gráfico actualizado en BD');
+    console.log('✅ Gráfico actualizado exitosamente en la base de datos');
 
-    // CLAVE: Forzar re-render del gráfico específico
+    // 6️⃣ Forzar re-render del gráfico específico
     setChartRenderKeys(prev => ({
       ...prev,
-      [chartId]: Date.now() // Nueva key única para este gráfico
+      [chartId]: Date.now() // Clave única para forzar re-render
     }));
 
-    // Esperar un momento y luego refrescar datos
+    // 7️⃣ Refrescar los datos del dashboard después de un breve delay
     setTimeout(async () => {
+      console.log('🔄 Refrescando datos del dashboard...');
       await fetchDashboards();
-      alert('¡Gráfico actualizado exitosamente!');
-    }, 500);
+      
+      // Mostrar mensaje de éxito
+      alert(`✅ ¡Gráfico actualizado exitosamente!\n\n📊 Nuevos datos:\n• Labels: ${processedData.labels.length} elementos\n• Values: ${Array.isArray(processedData.values[0]) ? processedData.values.length + ' series' : processedData.values.length + ' valores'}`);
+      
+      console.log('🎉 Proceso de actualización completado');
+    }, 800);
     
   } catch (err) {
-    console.error('❌ Error al actualizar gráfico:', err);
-    alert('Error al actualizar gráfico: ' + err.message);
+    console.error('❌ Error en refreshChart:', err);
+    
+    // Mensaje de error más detallado
+    let errorMessage = 'Error desconocido';
+    if (err.message.includes('execute_sql')) {
+      errorMessage = 'Error ejecutando la consulta SQL. Verifica la sintaxis y que las tablas existan.';
+    } else if (err.message.includes('actualizar')) {
+      errorMessage = 'Error guardando los datos actualizados. Intenta de nuevo.';
+    } else {
+      errorMessage = err.message;
+    }
+    
+    alert(`❌ Error al actualizar el gráfico:\n\n${errorMessage}\n\n💡 Consejos:\n• Verifica que la consulta SQL sea válida\n• Asegúrate de que las tablas existan\n• Revisa que haya datos para mostrar`);
   } finally {
     setRefreshingChart(null);
   }
 };
 
-  // Función mejorada para procesar datos del SQL
-  const processChartData = (data) => {
-    if (!data || data.length === 0) {
-      return { values: [], labels: [] };
-    }
+// 🎯 FUNCIÓN MEJORADA PARA PROCESAR DATOS DEL SQL
+const processChartData = (data) => {
+  console.log('🔍 Procesando datos del SQL:', data);
+  
+  if (!data || data.length === 0) {
+    console.warn('⚠️ No hay datos para procesar');
+    return { values: [], labels: [] };
+  }
 
-    const firstRow = data[0];
-    const keys = Object.keys(firstRow);
+  const firstRow = data[0];
+  const keys = Object.keys(firstRow);
+  
+  console.log('📋 Columnas encontradas:', keys);
+  console.log('📈 Número de filas:', data.length);
+  
+  // 🔸 CASO 1: Exactamente 2 columnas (típico para gráficos simples)
+  if (keys.length === 2) {
+    const [labelKey, valueKey] = keys;
     
-    console.log('Processing chart data:', { data, keys });
+    const labels = data.map(row => {
+      const label = row[labelKey];
+      // Convertir fechas a formato legible
+      if (label instanceof Date) {
+        return label.toLocaleDateString();
+      }
+      return String(label);
+    });
     
-    // Si hay exactamente 2 columnas, usar una como labels y otra como values (para gráficos simples)
-    if (keys.length === 2) {
-      return {
-        labels: data.map(row => row[keys[0]]),
-        values: data.map(row => row[keys[1]])
-      };
-    }
+    const values = data.map(row => {
+      const value = row[valueKey];
+      // Asegurar que los valores sean numéricos
+      return typeof value === 'number' ? value : parseFloat(value) || 0;
+    });
     
-    // Para gráficos multi-line: primera columna como labels, resto como series de datos
-    if (keys.length > 2) {
-      const labelKey = keys[0];
-      const valueKeys = keys.slice(1);
-      
-      // CORRECCIÓN: Crear estructura compatible con multi-line
-      const multiLineData = valueKeys.map(key => ({
-        label: key,
-        data: data.map(row => row[key])
-      }));
-      
-      console.log('Multi-line data processed:', multiLineData);
-      
-      return {
-        labels: data.map(row => row[labelKey]),
-        values: multiLineData // Array de objetos con {label, data}
-      };
-    }
+    console.log('📊 Gráfico simple - Labels:', labels.slice(0, 3), '... Values:', values.slice(0, 3));
     
-    // Fallback para una sola columna
+    return { labels, values };
+  }
+  
+  // 🔸 CASO 2: Más de 2 columnas (gráfico multi-serie)
+  if (keys.length > 2) {
+    const labelKey = keys[0]; // Primera columna como labels
+    const valueKeys = keys.slice(1); // Resto como series de datos
+    
+    const labels = data.map(row => {
+      const label = row[labelKey];
+      if (label instanceof Date) {
+        return label.toLocaleDateString();
+      }
+      return String(label);
+    });
+    
+    // Crear estructura para gráfico multi-línea
+    const multiSeriesData = valueKeys.map(seriesKey => ({
+      name: seriesKey, // Usar el nombre de la columna como nombre de la serie
+      data: data.map(row => {
+        const value = row[seriesKey];
+        return typeof value === 'number' ? value : parseFloat(value) || 0;
+      })
+    }));
+    
+    console.log('📊 Gráfico multi-serie - Labels:', labels.slice(0, 3));
+    console.log('📊 Series:', multiSeriesData.map(s => ({ name: s.name, dataLength: s.data.length })));
+    
     return {
-      labels: data.map((_, index) => `Item ${index + 1}`),
-      values: data.map(row => row[keys[0]])
+      labels,
+      values: multiSeriesData
     };
-  };
+  }
+  
+  // 🔸 CASO 3: Solo una columna (fallback)
+  if (keys.length === 1) {
+    const [valueKey] = keys;
+    
+    const labels = data.map((_, index) => `Elemento ${index + 1}`);
+    const values = data.map(row => {
+      const value = row[valueKey];
+      return typeof value === 'number' ? value : parseFloat(value) || 0;
+    });
+    
+    console.log('📊 Gráfico de una columna - Values:', values.slice(0, 3));
+    
+    return { labels, values };
+  }
+  
+  // 🔸 FALLBACK: Si no hay datos válidos
+  console.warn('⚠️ Estructura de datos no reconocida');
+  return { values: [], labels: [] };
+};
 
+// 🎨 FUNCIÓN PARA DEBUGGING DE DATOS
+const debugChartData = (chartId, parsedData) => {
+  console.group(`🐛 DEBUG - Gráfico ${chartId}`);
+  console.log('📋 Labels tipo:', typeof parsedData.labels, 'Longitud:', parsedData.labels?.length);
+  console.log('📋 Labels muestra:', parsedData.labels?.slice(0, 3));
+  console.log('📊 Values tipo:', typeof parsedData.values, 'Longitud/Estructura:', 
+    Array.isArray(parsedData.values) ? parsedData.values.length : 'No es array');
+  
+  if (Array.isArray(parsedData.values)) {
+    if (parsedData.values.length > 0) {
+      const firstValue = parsedData.values[0];
+      console.log('📊 Primer valor tipo:', typeof firstValue);
+      if (typeof firstValue === 'object' && firstValue !== null) {
+        console.log('📊 Estructura del primer valor:', Object.keys(firstValue));
+      }
+    }
+  }
+  console.groupEnd();
+};
+
+// 🔧 FUNCIÓN AUXILIAR PARA VALIDAR ESTRUCTURA SQL
+const validateSQLStructure = (results) => {
+  if (!Array.isArray(results) || results.length === 0) {
+    return { valid: false, message: 'La consulta debe devolver al menos una fila de datos.' };
+  }
+  
+  const firstRow = results[0];
+  const keys = Object.keys(firstRow);
+  
+  if (keys.length === 0) {
+    return { valid: false, message: 'La consulta debe devolver al menos una columna.' };
+  }
+  
+  if (keys.length === 1) {
+    return { 
+      valid: true, 
+      message: `Gráfico simple: ${keys.length} columna detectada (${keys[0]})` 
+    };
+  }
+  
+  if (keys.length === 2) {
+    return { 
+      valid: true, 
+      message: `Gráfico simple: 2 columnas detectadas (${keys[0]} → ${keys[1]})` 
+    };
+  }
+  
+  return { 
+    valid: true, 
+    message: `Gráfico multi-serie: ${keys.length} columnas detectadas (${keys[0]} + ${keys.length - 1} series)` 
+  };
+};
+
+export { refreshChart, processChartData, debugChartData, validateSQLStructure };
   // Función para generar colores automáticamente
   const generateColors = (count) => {
     const colors = [
