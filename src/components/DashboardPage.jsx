@@ -461,8 +461,6 @@ const refreshChart = async (chartId, sql) => {
                   tension: 0.1
                 }));
               }
-          } catch (e) {
-            console.error('Error re-parsing values:', e);
           }
         }
 
