@@ -49,13 +49,14 @@ const DashboardPage = () => {
           created_at,
           user_id,
           graficos (
-            id,
+             id,
             title,
             chart_type,
             values,
             labels,
             sql,
-            created_at
+            created_at,
+            updated_at
           )
         `)
         .eq('user_id', user.id)
@@ -66,52 +67,80 @@ const DashboardPage = () => {
       }
 
       console.log('Dashboards obtenidos:', data);
-      setDashboards(data || []);
-    } catch (err) {
-      console.error('Error en fetchDashboards:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+      // Forzar una nueva referencia para que React detecte cambios
+      const processedData = data ? data.map(dashboard => ({
+        ...dashboard,
+        graficos: Array.isArray(dashboard.graficos) 
+          ? dashboard.graficos.map(grafico => ({ ...grafico }))
+          : dashboard.graficos ? [{ ...dashboard.graficos }] : []
+      })) : [];
+
+      setDashboards(processedData);
+      } catch (err) {
+        console.error('Error en fetchDashboards:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
 
   // Función para actualizar un gráfico ejecutando su SQL
-  const refreshChart = async (chartId, sql) => {
-    try {
-      setRefreshingChart(chartId);
-      
-      // Ejecutar la query SQL
-      const { data, error } = await supabase.rpc('execute_sql', { query: sql });
-      
-      if (error) {
-        throw new Error('Error al ejecutar SQL: ' + error.message);
-      }
-
-      // Actualizar el gráfico en la base de datos
-      const processedData = processChartData(data);
-      
-      const { error: updateError } = await supabase
-        .from('graficos')
-        .update({
-          values: processedData.values,
-          labels: processedData.labels
-        })
-        .eq('id', chartId);
-
-      if (updateError) {
-        throw new Error('Error al actualizar gráfico: ' + updateError.message);
-      }
-
-      // Refrescar los dashboards
-      await fetchDashboards();
-      
-    } catch (err) {
-      console.error('Error al actualizar gráfico:', err);
-      alert('Error al actualizar gráfico: ' + err.message);
-    } finally {
-      setRefreshingChart(null);
+// Función mejorada para actualizar un gráfico ejecutando su SQL
+const refreshChart = async (chartId, sql) => {
+  try {
+    setRefreshingChart(chartId);
+    console.log(`🔄 Actualizando gráfico ${chartId} con SQL:`, sql);
+    
+    // Ejecutar la query SQL
+    const { data, error } = await supabase.rpc('execute_sql', { query: sql });
+    
+    if (error) {
+      throw new Error('Error al ejecutar SQL: ' + error.message);
     }
-  };
+
+    console.log('📊 Datos obtenidos del SQL:', data);
+
+    // Verificar que tenemos datos
+    if (!data || data.length === 0) {
+      alert('La consulta SQL no devolvió datos. Verifica tu consulta.');
+      return;
+    }
+
+    // Procesar los datos del SQL
+    const processedData = processChartData(data);
+    console.log('🎯 Datos procesados:', processedData);
+
+    // Actualizar el gráfico en la base de datos con marca de tiempo para forzar cambio
+    const { error: updateError } = await supabase
+      .from('graficos')
+      .update({
+        values: JSON.stringify(processedData.values), // Asegurar que sea string
+        labels: JSON.stringify(processedData.labels), // Asegurar que sea string
+        updated_at: new Date().toISOString() // Agregar timestamp para forzar cambio
+      })
+      .eq('id', chartId);
+
+    if (updateError) {
+      throw new Error('Error al actualizar gráfico: ' + updateError.message);
+    }
+
+    console.log('✅ Gráfico actualizado en BD');
+
+    // Refrescar los dashboards - IMPORTANTE: limpiar estado primero
+    setDashboards([]); // Limpiar para forzar re-render
+    await new Promise(resolve => setTimeout(resolve, 100)); // Pequeño delay
+    await fetchDashboards();
+    
+    // Mostrar confirmación
+    alert('¡Gráfico actualizado exitosamente!');
+    
+  } catch (err) {
+    console.error('❌ Error al actualizar gráfico:', err);
+    alert('Error al actualizar gráfico: ' + err.message);
+  } finally {
+    setRefreshingChart(null);
+  }
+};
 
   // Función mejorada para procesar datos del SQL
   const processChartData = (data) => {
@@ -223,6 +252,7 @@ const DashboardPage = () => {
     let labels = safeJsonParse(grafico.labels, []);
 
     console.log('Datos parseados:', { values, labels, type: grafico.chart_type });
+    const chartKey = `chart-${grafico.id}-${grafico.updated_at || Date.now()}`;
 
     if (!values || !labels || (Array.isArray(values) && values.length === 0)) {
       return <div className="text-gray-500">No hay datos válidos para mostrar</div>;
@@ -243,8 +273,21 @@ const DashboardPage = () => {
             borderWidth: 1
           }]
         };
-        return <Bar data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
-
+        return (
+          <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
+            <Bar 
+              data={chartData} 
+              options={{ 
+                responsive: true, 
+                maintainAspectRatio: false,
+                animation: {
+                  duration: 1000
+                }
+              }} 
+            />
+          </div>
+        );
+  
       case 'pie':
         const pieColors = generateColors(Array.isArray(values) ? values.length : 1);
         chartData = {
@@ -256,7 +299,20 @@ const DashboardPage = () => {
             borderWidth: 1
           }]
         };
-        return <Pie data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
+        return (
+          <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
+            <Pie 
+              data={chartData} 
+              options={{ 
+                responsive: true, 
+                maintainAspectRatio: false,
+                animation: {
+                  duration: 1000
+                }
+              }} 
+            />
+        </div>
+      );
 
       case 'line':
         chartData = {
@@ -270,7 +326,20 @@ const DashboardPage = () => {
             tension: 0.1
           }]
         };
-        return <Line data={chartData} options={{ responsive: true, maintainAspectRatio: false }} />;
+        return (
+          <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
+            <Line 
+              data={chartData} 
+              options={{ 
+              responsive: true, 
+              maintainAspectRatio: false,
+              animation: {
+                duration: 1000
+              }
+            }} 
+          />
+        </div>
+      );
 
       case 'multi-line':
         let datasets = [];
@@ -395,22 +464,31 @@ const DashboardPage = () => {
           datasets: datasets
         };
         
-        return <Line data={chartData} options={{ 
-          responsive: true, 
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              display: true,
-              position: 'top'
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true
-            }
-          }
-        }} />;
-
+        return (
+          <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
+            <Line 
+              data={chartData} 
+              options={{ 
+              responsive: true, 
+              maintainAspectRatio: false,
+              animation: {
+                duration: 1000
+              },
+              plugins: {
+                legend: {
+                  display: true,
+                  position: 'top'
+                }
+              },
+              scales: {
+                y: {
+                  beginAtZero: true
+                }
+              }
+            }} 
+          />
+        </div>
+      );
       default:
         return <div className="text-gray-500">Tipo de gráfico no soportado: {grafico.chart_type}</div>;
     }
