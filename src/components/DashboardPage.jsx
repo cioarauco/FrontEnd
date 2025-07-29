@@ -25,6 +25,146 @@ const DashboardPage = () => {
   const [activeTab, setActiveTab] = useState('all');
   const [chartRenderKeys, setChartRenderKeys] = useState({});
 
+  // 🎨 NUEVA PALETA DE COLORES MÁS VARIADA Y ATRACTIVA
+  const generateColors = (count) => {
+    const colors = [
+      'rgba(255, 99, 132, 0.8)',    // Rosa vibrante
+      'rgba(54, 162, 235, 0.8)',    // Azul cielo
+      'rgba(255, 205, 86, 0.8)',    // Amarillo dorado
+      'rgba(75, 192, 192, 0.8)',    // Verde agua
+      'rgba(153, 102, 255, 0.8)',   // Púrpura
+      'rgba(255, 159, 64, 0.8)',    // Naranja
+      'rgba(199, 199, 199, 0.8)',   // Gris claro
+      'rgba(83, 102, 255, 0.8)',    // Azul índigo
+      'rgba(255, 99, 255, 0.8)',    // Magenta
+      'rgba(99, 255, 132, 0.8)',    // Verde lima
+      'rgba(255, 193, 7, 0.8)',     // Ámbar
+      'rgba(156, 39, 176, 0.8)',    // Púrpura profundo
+      'rgba(0, 188, 212, 0.8)',     // Cian
+      'rgba(76, 175, 80, 0.8)',     // Verde
+      'rgba(244, 67, 54, 0.8)',     // Rojo
+    ];
+    
+    const borderColors = [
+      'rgba(255, 99, 132, 1)',
+      'rgba(54, 162, 235, 1)',
+      'rgba(255, 205, 86, 1)',
+      'rgba(75, 192, 192, 1)',
+      'rgba(153, 102, 255, 1)',
+      'rgba(255, 159, 64, 1)',
+      'rgba(199, 199, 199, 1)',
+      'rgba(83, 102, 255, 1)',
+      'rgba(255, 99, 255, 1)',
+      'rgba(99, 255, 132, 1)',
+      'rgba(255, 193, 7, 1)',
+      'rgba(156, 39, 176, 1)',
+      'rgba(0, 188, 212, 1)',
+      'rgba(76, 175, 80, 1)',
+      'rgba(244, 67, 54, 1)',
+    ];
+    
+    return {
+      backgrounds: Array.from({ length: count }, (_, i) => colors[i % colors.length]),
+      borders: Array.from({ length: count }, (_, i) => borderColors[i % borderColors.length])
+    };
+  };
+
+  // 🎯 OPCIONES BASE UNIFICADAS PARA TODOS LOS GRÁFICOS
+  const getUnifiedBaseOptions = (chartType = 'default') => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: {
+      duration: 750,
+      easing: 'easeInOutQuart',
+    },
+    interaction: {
+      mode: 'index',
+      intersect: false,
+    },
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top',
+        labels: {
+          usePointStyle: true,
+          pointStyle: 'circle',
+          padding: 20,
+          font: {
+            size: 12,
+            weight: '500'
+          }
+        }
+      },
+      tooltip: {
+        enabled: true,
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        titleColor: 'white',
+        bodyColor: 'white',
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+        borderWidth: 1,
+        cornerRadius: 8,
+        displayColors: true,
+        callbacks: {
+          title: function(context) {
+            return context[0].label;
+          },
+          label: function(context) {
+            const dataset = context.dataset;
+            const value = context.parsed.y || context.parsed;
+            
+            if (chartType === 'mixed') {
+              const serieType = dataset.type || 'line';
+              return `${dataset.label} (${serieType}): ${value}`;
+            }
+            
+            return `${dataset.label}: ${value}`;
+          }
+        }
+      }
+    },
+    elements: {
+      point: {
+        radius: 4,
+        hoverRadius: 8,
+        borderWidth: 2,
+        hoverBorderWidth: 3
+      },
+      line: {
+        tension: 0.4,
+        borderWidth: 3
+      },
+      bar: {
+        borderWidth: 2,
+        borderSkipped: false,
+        borderRadius: 4
+      }
+    },
+    scales: chartType !== 'pie' ? {
+      y: {
+        beginAtZero: true,
+        grid: {
+          color: 'rgba(0, 0, 0, 0.1)',
+          drawBorder: false
+        },
+        ticks: {
+          font: {
+            size: 11
+          }
+        }
+      },
+      x: {
+        grid: {
+          display: false
+        },
+        ticks: {
+          font: {
+            size: 11
+          }
+        }
+      }
+    } : {}
+  });
+
   // Función para obtener los dashboards del usuario
   const fetchDashboards = async () => {
     try {
@@ -41,7 +181,6 @@ const DashboardPage = () => {
         throw new Error('Usuario no autenticado');
       }
 
-      // 🆕 Incluir campo 'axes' en la consulta para gráficos mixtos
       const { data, error } = await supabase
         .from('dashboard')
         .select(`
@@ -84,7 +223,7 @@ const DashboardPage = () => {
       }
     };
 
-  // 🆕 Función mejorada para actualizar gráficos mixtos
+  // Función mejorada para actualizar gráficos mixtos
   const refreshChart = async (chartId, sql) => {
     try {
       setRefreshingChart(chartId);
@@ -106,7 +245,6 @@ const DashboardPage = () => {
       const processedData = processChartData(data);
       console.log('🎯 Datos procesados:', processedData);
 
-      // 🆕 Actualizar también axes si existen
       const updateData = {
         values: processedData.values,
         labels: processedData.labels,
@@ -146,7 +284,7 @@ const DashboardPage = () => {
     }
   };
 
-  // 🆕 Función mejorada para procesar datos con soporte para gráficos mixtos
+  // Función mejorada para procesar datos con soporte para gráficos mixtos
   const processChartData = (data) => {
     if (!data || data.length === 0) {
       return { values: [], labels: [] };
@@ -157,21 +295,17 @@ const DashboardPage = () => {
     
     console.log('Processing chart data:', { data, keys });
 
-    // 🎯 DETECCIÓN AUTOMÁTICA DE GRÁFICOS MIXTOS
-    // Buscar patrones que indiquen necesidad de gráfico mixto
+    // DETECCIÓN AUTOMÁTICA DE GRÁFICOS MIXTOS
     const hasTypeColumn = keys.some(key => key.toLowerCase().includes('type') || key.toLowerCase().includes('tipo'));
     const hasMultipleNumericColumns = keys.filter(k => 
       typeof data[0][k] === "number" || data.every(row => !isNaN(Number(row[k])))
     ).length > 1;
 
-    // Si hay columna de tipo o múltiples columnas numéricas, podría ser mixto
     if (hasTypeColumn || hasMultipleNumericColumns) {
       console.log('🎯 Posible gráfico mixto detectado');
       
-      // Buscar columna de fecha/etiqueta
       let labelKey = keys.find(k => k.toLowerCase().includes('fecha') || k.toLowerCase().includes('date')) || keys[0];
       
-      // Si hay columna de tipo explícita
       if (hasTypeColumn) {
         const typeKey = keys.find(key => key.toLowerCase().includes('type') || key.toLowerCase().includes('tipo'));
         const valueKey = keys.find(k => typeof data[0][k] === "number" || data.every(row => !isNaN(Number(row[k]))));
@@ -192,11 +326,10 @@ const DashboardPage = () => {
                 const row = serieData.find(r => r[labelKey] === label);
                 return row ? Number(row[valueKey]) : 0;
               }),
-              yAxisID: serieType === 'bar' ? 'y1' : 'y' // Diferentes ejes para tipos diferentes
+              yAxisID: serieType === 'bar' ? 'y1' : 'y'
             };
           });
 
-          // Crear configuración de ejes para gráfico mixto
           const axes = [
             {
               id: 'y',
@@ -300,40 +433,6 @@ const DashboardPage = () => {
     };
   };
 
-  // Función para generar colores automáticamente
-  const generateColors = (count) => {
-    const colors = [
-     'rgba(34, 139, 34, 0.8)',    // Verde bosque principal
-    ' rgba(46, 125, 50, 0.8)',    // Verde pino
-    ' rgba(76, 175, 80, 0.8)',    // Verde claro
-     'rgba(139, 69, 19, 0.8)',    // Marrón corteza
-     'rgba(160, 82, 45, 0.8)',    // Marrón tronco
-     'rgba(205, 133, 63, 0.8)',   // Marrón arena
-     'rgba(85, 107, 47, 0.8)',    // Verde oliva
-     'rgba(107, 142, 35, 0.8)',   // Verde lima oliva
-     'rgba(72, 61, 139, 0.8)',    // Azul profundo (cielo)
-     'rgba(30, 144, 255, 0.8)',   // Azul cielo
-    ];
-    
-    const borderColors = [
-      'rgba(34, 139, 34, 1)',
-      'rgba(46, 125, 50, 1)',
-      'rgba(76, 175, 80, 1)',
-      'rgba(139, 69, 19, 1)',
-      'rgba(160, 82, 45, 1)',
-      'rgba(205, 133, 63, 1)',
-      'rgba(85, 107, 47, 1)',
-      'rgba(107, 142, 35, 1)',
-      'rgba(72, 61, 139, 1)',
-      'rgba(30, 144, 255, 1)',
-    ];
-    
-    return {
-      backgrounds: Array.from({ length: count }, (_, i) => colors[i % colors.length]),
-      borders: Array.from({ length: count }, (_, i) => borderColors[i % borderColors.length])
-    };
-  };
-
   // Función para limpiar y parsear datos JSON de forma segura
   const safeJsonParse = (jsonString, fallback = null) => {
     if (!jsonString) return fallback;
@@ -350,7 +449,7 @@ const DashboardPage = () => {
     }
   };
 
-  // 🆕 Función mejorada para renderizar gráficos con soporte mixto
+  // 🆕 FUNCIÓN MEJORADA PARA RENDERIZAR GRÁFICOS CON ESTILOS UNIFICADOS
   const renderChart = (grafico) => {
     console.log('🎨 Renderizando gráfico:', {
       id: grafico.id,
@@ -383,12 +482,20 @@ const DashboardPage = () => {
 
     let chartData;
 
-    // 🆕 Función para crear escalas dinámicas para gráficos mixtos
+    // Función para crear escalas dinámicas para gráficos mixtos
     const createMixedScales = () => {
       const scales = {
         x: {
           type: 'category',
-          labels: labels
+          labels: labels,
+          grid: {
+            display: false
+          },
+          ticks: {
+            font: {
+              size: 11
+            }
+          }
         }
       };
 
@@ -400,12 +507,23 @@ const DashboardPage = () => {
             position: axis.position || 'left',
             title: {
               display: !!axis.title,
-              text: axis.title
+              text: axis.title,
+              font: {
+                size: 12,
+                weight: '500'
+              }
             },
             grid: {
-              drawOnChartArea: axis.position !== 'right'
+              drawOnChartArea: axis.position !== 'right',
+              color: 'rgba(0, 0, 0, 0.1)',
+              drawBorder: false
             },
-            beginAtZero: axis.beginAtZero !== false
+            beginAtZero: axis.beginAtZero !== false,
+            ticks: {
+              font: {
+                size: 11
+              }
+            }
           };
         });
       }
@@ -413,40 +531,22 @@ const DashboardPage = () => {
       return scales;
     };
 
-    const getBaseOptions = () => ({
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: {
-        duration: 0,
-        onComplete: function() {
-          console.log('🎬 Chart render completed for:', grafico.id);
-        }
-      },
-      plugins: {
-        legend: {
-          display: true
-        }
-      },
-      elements: {
-        point: {
-          radius: function(context) {
-            return 3 + (forceRenderKey % 2);
-          }
-        }
-      }
-    });
-
-    // 🎯 Renderizado según tipo de gráfico
+    // 🎯 RENDERIZADO SEGÚN TIPO DE GRÁFICO CON ESTILOS UNIFICADOS
     switch (grafico.chart_type) {
       case 'bar':
+        const barColors = generateColors(Array.isArray(values) ? values.length : 1);
         chartData = {
           labels: labels,
           datasets: [{
             label: 'Datos',
             data: values,
-            backgroundColor: `rgba(54, 162, 235, ${0.5 + (forceRenderKey % 100) * 0.001})`,
-            borderColor: 'rgba(54, 162, 235, 1)',
-            borderWidth: 1
+            backgroundColor: barColors.backgrounds,
+            borderColor: barColors.borders,
+            borderWidth: 2,
+            borderSkipped: false,
+            borderRadius: 4,
+            hoverBackgroundColor: barColors.borders,
+            hoverBorderWidth: 3
           }]
         };
         return (
@@ -454,7 +554,7 @@ const DashboardPage = () => {
             <Bar 
               key={chartKey}
               data={chartData} 
-              options={getBaseOptions()}
+              options={getUnifiedBaseOptions('bar')}
               redraw={true}
             />
           </div>
@@ -468,7 +568,9 @@ const DashboardPage = () => {
             data: values,
             backgroundColor: pieColors.backgrounds,
             borderColor: pieColors.borders,
-            borderWidth: 1
+            borderWidth: 3,
+            hoverBorderWidth: 4,
+            hoverOffset: 8
           }]
         };
         return (
@@ -476,22 +578,30 @@ const DashboardPage = () => {
             <Pie 
               key={chartKey}
               data={chartData} 
-              options={getBaseOptions()}
+              options={getUnifiedBaseOptions('pie')}
               redraw={true}
             />
           </div>
         );
 
       case 'line':
+        const lineColors = generateColors(1);
         chartData = {
           labels: labels,
           datasets: [{
             label: 'Datos',
             data: values,
             fill: false,
-            borderColor: 'rgba(75, 192, 192, 1)',
-            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-            tension: 0.1
+            borderColor: lineColors.borders[0],
+            backgroundColor: lineColors.backgrounds[0],
+            tension: 0.4,
+            borderWidth: 3,
+            pointBackgroundColor: lineColors.borders[0],
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 8,
+            pointHoverBorderWidth: 3
           }]
         };
         return (
@@ -499,13 +609,13 @@ const DashboardPage = () => {
             <Line 
               key={chartKey}
               data={chartData} 
-              options={getBaseOptions()}
+              options={getUnifiedBaseOptions('line')}
               redraw={true}
             />
           </div>
         );
 
-      // 🆕 CASO PARA GRÁFICOS MIXTOS
+      // CASO PARA GRÁFICOS MIXTOS
       case 'mixed':
         let mixedDatasets = [];
         
@@ -523,15 +633,20 @@ const DashboardPage = () => {
               pointBorderColor: '#ffffff',
               pointBorderWidth: 2,
               pointRadius: 4,
-              pointHoverRadius: 6
+              pointHoverRadius: 8,
+              pointHoverBorderWidth: 3
             };
 
-            // Configuración específica por tipo
             if (serie.type === 'bar') {
               return {
                 ...baseDataset,
                 type: 'bar',
                 backgroundColor: colors.backgrounds[index],
+                borderWidth: 2,
+                borderSkipped: false,
+                borderRadius: 4,
+                hoverBackgroundColor: colors.borders[index],
+                hoverBorderWidth: 3,
                 yAxisID: serie.yAxisID || 'y1',
                 order: 2
               };
@@ -542,6 +657,7 @@ const DashboardPage = () => {
                 backgroundColor: 'transparent',
                 fill: false,
                 tension: 0.4,
+                borderWidth: 3,
                 yAxisID: serie.yAxisID || 'y',
                 order: 1
               };
@@ -574,30 +690,7 @@ const DashboardPage = () => {
               key={chartKey}
               data={chartData} 
               options={{
-                ...getBaseOptions(),
-                interaction: {
-                  mode: 'index',
-                  intersect: false,
-                },
-                plugins: {
-                  legend: {
-                    display: true,
-                    position: 'top'
-                  },
-                  tooltip: {
-                    callbacks: {
-                      title: function(context) {
-                        return context[0].label;
-                      },
-                      label: function(context) {
-                        const dataset = context.dataset;
-                        const serieType = dataset.type || 'line';
-                        const axisTitle = axes?.find(axis => axis.id === dataset.yAxisID)?.title || '';
-                        return `${dataset.label} (${serieType}): ${context.parsed.y} ${axisTitle}`;
-                      }
-                    }
-                  }
-                },
+                ...getUnifiedBaseOptions('mixed'),
                 scales: createMixedScales()
               }}
               redraw={true}
@@ -619,7 +712,14 @@ const DashboardPage = () => {
               borderColor: colors.borders[index],
               backgroundColor: colors.backgrounds[index],
               fill: false,
-              tension: 0.1
+              tension: 0.4,
+              borderWidth: 3,
+              pointBackgroundColor: colors.borders[index],
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+              pointHoverRadius: 8,
+              pointHoverBorderWidth: 3
             }));
           }
           else if (typeof values[0] === 'object' && values[0] !== null && 'label' in values[0] && 'data' in values[0]) {
@@ -630,7 +730,14 @@ const DashboardPage = () => {
               borderColor: colors.borders[index],
               backgroundColor: colors.backgrounds[index],
               fill: false,
-              tension: 0.1
+              tension: 0.4,
+              borderWidth: 3,
+              pointBackgroundColor: colors.borders[index],
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+              pointHoverRadius: 8,
+              pointHoverBorderWidth: 3
             }));
           } 
           else if (Array.isArray(values[0])) {
@@ -641,17 +748,32 @@ const DashboardPage = () => {
               borderColor: colors.borders[index],
               backgroundColor: colors.backgrounds[index],
               fill: false,
-              tension: 0.1
+              tension: 0.4,
+              borderWidth: 3,
+              pointBackgroundColor: colors.borders[index],
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+              pointHoverRadius: 8,
+              pointHoverBorderWidth: 3
             }));
           }
           else if (typeof values[0] === 'number' || typeof values[0] === 'string') {
+            const colors = generateColors(1);
             datasets = [{
               label: 'Datos',
               data: values,
-              borderColor: 'rgba(75, 192, 192, 1)',
-              backgroundColor: 'rgba(75, 192, 192, 0.2)',
+              borderColor: colors.borders[0],
+              backgroundColor: colors.backgrounds[0],
               fill: false,
-              tension: 0.1
+              tension: 0.4,
+              borderWidth: 3,
+              pointBackgroundColor: colors.borders[0],
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+              pointHoverRadius: 8,
+              pointHoverBorderWidth: 3
             }];
           }
         }
@@ -669,7 +791,14 @@ const DashboardPage = () => {
                 borderColor: colors.borders[index],
                 backgroundColor: colors.backgrounds[index],
                 fill: false,
-                tension: 0.1
+                tension: 0.4,
+                borderWidth: 3,
+                pointBackgroundColor: colors.borders[index],
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 8,
+                pointHoverBorderWidth: 3
               };
             });
           }
@@ -688,7 +817,14 @@ const DashboardPage = () => {
                   borderColor: colors.borders[index],
                   backgroundColor: colors.backgrounds[index],
                   fill: false,
-                  tension: 0.1
+                  tension: 0.4,
+                  borderWidth: 3,
+                  pointBackgroundColor: colors.borders[index],
+                  pointBorderColor: '#ffffff',
+                  pointBorderWidth: 2,
+                  pointRadius: 4,
+                  pointHoverRadius: 8,
+                  pointHoverBorderWidth: 3
                 }));
               }
             }
@@ -721,23 +857,11 @@ const DashboardPage = () => {
             <Line 
               key={chartKey}
               data={chartData} 
-              options={{ 
-                ...getBaseOptions(),
-              plugins: {
-                legend: {
-                  display: true,
-                  position: 'top'
-                }
-              },
-              scales: {
-                y: {
-                  beginAtZero: true
-                }
-              }
-            }} 
-          />
-        </div>
-      );
+              options={getUnifiedBaseOptions('multi-line')}
+              redraw={true}
+            />
+          </div>
+        );
       
       default:
         return <div className="text-gray-500">Tipo de gráfico no soportado: {grafico.chart_type}</div>;
@@ -787,7 +911,7 @@ const DashboardPage = () => {
     return allCharts.filter(({ grafico }) => grafico.chart_type === activeTab);
   };
 
-  // 🆕 Función para obtener tipos únicos incluyendo 'mixed'
+  // Función para obtener tipos únicos incluyendo 'mixed'
   const getUniqueChartTypes = () => {
     const types = new Set();
     dashboards.forEach((dashboard) => {
@@ -924,7 +1048,7 @@ const DashboardPage = () => {
         <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
           <div>
             <h1 className="text-4xl font-bold text-gray-800 dark:text-white mb-2">📊 Mis Dashboards</h1>
-            <p className="text-gray-600 dark:text-gray-300">Visualiza y gestiona tus gráficos de datos</p>
+            <p className="text-gray-600 dark:text-gray-300">Visualiza y gestiona tus gráficos de datos con estilos mejorados</p>
           </div>
           <button 
             onClick={fetchDashboards}
@@ -934,15 +1058,15 @@ const DashboardPage = () => {
           </button>
         </div>
 
-        {/* 🆕 Pestañas de navegación mejoradas con soporte para gráficos mixtos */}
+        {/* Pestañas de navegación mejoradas */}
         <div className="p-6 pb-0">
-          <div className="bg-gray-100 dark:bg-gray-800 rounded-lg shadow-lg p-1 inline-flex space-x-1">
+          <div className="bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-xl shadow-inner p-1 inline-flex space-x-1">
             <button
               onClick={() => setActiveTab('all')}
-              className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
+              className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 transform ${
                 activeTab === 'all'
-                  ? 'bg-gradient-to-r from-[#D2C900] to-[#bcae00] text-black shadow-lg'
-                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700'
+                  ? 'bg-gradient-to-r from-[#D2C900] to-[#bcae00] text-black shadow-lg scale-105'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-600/50'
               }`}
             >
               📈 Todos ({filteredCharts.length})
@@ -955,7 +1079,7 @@ const DashboardPage = () => {
                 'pie': '🥧',
                 'line': '📈',
                 'multi-line': '📊',
-                'mixed': '🎯' // 🆕 Icono para gráficos mixtos
+                'mixed': '🎯'
               }[type] || '📊';
               
               const label = {
@@ -963,17 +1087,17 @@ const DashboardPage = () => {
                 'pie': 'Circular',
                 'line': 'Líneas',
                 'multi-line': 'Multi-Líneas',
-                'mixed': 'Mixtos' // 🆕 Etiqueta para gráficos mixtos
+                'mixed': 'Mixtos'
               }[type] || type;
 
               return (
                 <button
                   key={type}
                   onClick={() => setActiveTab(type)}
-                  className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
+                  className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 transform ${
                     activeTab === type
-                      ? 'bg-gradient-to-r from-[#D2C900] to-[#bcae00] text-black shadow-lg'
-                      : 'text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700'
+                      ? 'bg-gradient-to-r from-[#D2C900] to-[#bcae00] text-black shadow-lg scale-105'
+                      : 'text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-600/50'
                   }`}
                 >
                   {icon} {label} ({count})
@@ -989,24 +1113,23 @@ const DashboardPage = () => {
             {filteredCharts.map(({ dashboard, grafico }) => (
               <div 
                 key={`${dashboard.id}-${grafico.id}`} 
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 overflow-hidden border border-gray-100 dark:border-gray-700"
+                className="bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-3 hover:scale-105 overflow-hidden border border-gray-100 dark:border-gray-700"
               >
-                {/* Header de la tarjeta */}
+                {/* Header de la tarjeta con gradiente */}
                 <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 px-6 py-4 border-b border-gray-200 dark:border-gray-600">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
-                      <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-1">
+                      <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2 leading-tight">
                         {grafico.title || 'Sin título'}
                       </h3>
                       <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-                        <span className="flex items-center">
-                          {/* 🆕 Iconos actualizados incluyendo mixtos */}
+                        <span className="flex items-center bg-white dark:bg-gray-700 px-3 py-1 rounded-full shadow-sm">
                           {grafico.chart_type === 'bar' && '📊'}
                           {grafico.chart_type === 'pie' && '🥧'}
                           {grafico.chart_type === 'line' && '📈'}
                           {grafico.chart_type === 'multi-line' && '📊'}
                           {grafico.chart_type === 'mixed' && '🎯'}
-                          <span className="ml-1 capitalize">
+                          <span className="ml-1 capitalize font-medium">
                             {grafico.chart_type === 'mixed' ? 'Mixto' : grafico.chart_type}
                           </span>
                         </span>
@@ -1015,28 +1138,28 @@ const DashboardPage = () => {
                         </span>
                       </div>
                       
-                      {/* 🆕 Mostrar información de ejes para gráficos mixtos */}
+                      {/* Información de ejes para gráficos mixtos */}
                       {grafico.chart_type === 'mixed' && grafico.axes && (
                         <div className="mt-2">
-                          <div className="text-xs text-gray-400 dark:text-gray-500">
+                          <div className="text-xs text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded">
                             Ejes: {safeJsonParse(grafico.axes, []).map(axis => axis.title).join(', ')}
                           </div>
                         </div>
                       )}
                     </div>
                     
-                    <div className="flex space-x-2">
+                    <div className="flex space-x-2 ml-4">
                       <button
                         onClick={() => refreshChart(grafico.id, grafico.sql)}
                         disabled={refreshingChart === grafico.id}
-                        className="px-3 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-md hover:shadow-lg"
+                        className="px-3 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white text-sm rounded-lg hover:from-green-600 hover:to-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-110"
                         title="Actualizar datos"
                       >
                         {refreshingChart === grafico.id ? '⏳' : '🔄'}
                       </button>
                       <button
                         onClick={() => deleteDashboard(dashboard.id)}
-                        className="px-3 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-all duration-300 shadow-md hover:shadow-lg"
+                        className="px-3 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-sm rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-110"
                         title="Eliminar gráfico"
                       >
                         🗑️
@@ -1047,7 +1170,7 @@ const DashboardPage = () => {
 
                 {/* Contenido del gráfico */}
                 <div className="p-6">
-                  <div className="h-64 relative">
+                  <div className="h-64 relative bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-700 rounded-lg">
                     {renderChart(grafico)}
                   </div>
                 </div>
@@ -1058,9 +1181,9 @@ const DashboardPage = () => {
           {/* Mensaje cuando no hay gráficos en la pestaña activa */}
           {filteredCharts.length === 0 && activeTab !== 'all' && (
             <div className="text-center py-16">
-              <div className="bg-white rounded-xl shadow-lg p-8 max-w-md mx-auto">
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 max-w-md mx-auto border">
                 <div className="text-6xl mb-4">🔍</div>
-                <div className="text-gray-600 text-lg mb-2">
+                <div className="text-gray-600 dark:text-gray-300 text-lg mb-2">
                   No hay gráficos de tipo "{activeTab}"
                 </div>
                 <div className="text-gray-400">
