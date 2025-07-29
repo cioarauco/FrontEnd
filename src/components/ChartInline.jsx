@@ -1,4 +1,4 @@
-// ChartInline.jsx – optimizado para fondo naranja con soporte MIXTO
+// ChartInline.jsx – optimizado para fondo naranja con soporte MIXTO compatible con el agente
 import React from "react";
 import { Line, Bar, Pie } from "react-chartjs-2";
 import {
@@ -66,92 +66,107 @@ export default function ChartInline({ data, colorScheme = "default" }) {
   const isMultiSeries =
     Array.isArray(data.values) && typeof data.values[0] === "object";
 
-  // 🔥 NUEVO: Detectar si es gráfico mixto
-  const isMixedChart = data.chart_type === "mixed" || data.chart_type === "mixed-chart";
-  
-  // 🔥 NUEVO: Obtener configuración de gráfico mixto
-  const mixedConfig = data.chart_config || {};
-  const { seriesTypes = {}, yAxes = {} } = mixedConfig;
+  // 🔥 DETECTAR GRÁFICO MIXTO
+  const isMixedChart = data.chart_type === "mixed";
+
+  // 🆕 FUNCIÓN PARA CREAR DATASETS MIXTOS (compatible con formato del agente)
+  const createMixedDatasets = () => {
+    if (!isMultiSeries) return [];
+
+    return data.values.map((serie, idx) => {
+      const baseDataset = {
+        label: serie.name || serie.label,
+        data: serie.data,
+        borderColor: selectedColors[idx % selectedColors.length],
+        pointBackgroundColor: selectedColors[idx % selectedColors.length],
+        pointBorderColor: "#ffffff",
+        pointBorderWidth: 2,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        borderWidth: 3,
+      };
+
+      // 🎯 CONFIGURACIÓN ESPECÍFICA POR TIPO DE SERIE (usando datos del agente)
+      const serieType = serie.type || 'line'; // El agente incluye 'type'
+      const yAxisID = serie.yAxisID || 'y'; // El agente incluye 'yAxisID'
+
+      if (serieType === 'bar') {
+        return {
+          ...baseDataset,
+          type: 'bar',
+          backgroundColor: withAlpha(selectedColors[idx % selectedColors.length], 0.6),
+          yAxisID: yAxisID,
+          order: 2, // Las barras se dibujan después (atrás)
+        };
+      } else {
+        return {
+          ...baseDataset,
+          type: 'line',
+          backgroundColor: withAlpha(selectedColors[idx % selectedColors.length], 0.1),
+          fill: serie.fill || false,
+          tension: serie.tension || 0.4,
+          yAxisID: yAxisID,
+          order: 1, // Las líneas se dibujan primero (adelante)
+        };
+      }
+    });
+  };
 
   // 🗂️ Construcción dinámica de datasets con colores optimizados
-  const datasets = isMultiSeries
-    ? data.values.map((serie, idx) => {
-        const serieKey = serie.name || serie.label || `serie_${idx}`;
-        const serieType = seriesTypes[serieKey] || "line"; // Por defecto línea
-        const yAxisID = yAxes[serieKey] || "y"; // Eje Y por defecto
-        
-        const baseDataset = {
-          label: serieKey,
+  const datasets = (() => {
+    // 🆕 GRÁFICOS MIXTOS (formato del agente)
+    if (isMixedChart && isMultiSeries) {
+      return createMixedDatasets();
+    }
+
+    // GRÁFICOS EXISTENTES (sin cambios)
+    return isMultiSeries
+      ? data.values.map((serie, idx) => ({
+          label: serie.name || serie.label,
           data: serie.data,
           borderColor: selectedColors[idx % selectedColors.length],
-          backgroundColor: withAlpha(selectedColors[idx % selectedColors.length], 0.4),
+          backgroundColor:
+            data.chart_type === "bar"
+              ? withAlpha(selectedColors[idx % selectedColors.length], 0.4)
+              : withAlpha(selectedColors[idx % selectedColors.length], 0.2),
           pointBackgroundColor: selectedColors[idx % selectedColors.length],
           pointBorderColor: "#ffffff",
           pointBorderWidth: 2,
           pointRadius: 5,
           pointHoverRadius: 7,
-          borderWidth: 3,
-          yAxisID: yAxisID, // 🔥 NUEVO: Asignar eje Y
-        };
-
-        // 🔥 NUEVO: Configuración específica por tipo de serie
-        if (isMixedChart) {
-          if (serieType === "bar") {
-            return {
-              ...baseDataset,
-              type: "bar",
-              backgroundColor: withAlpha(selectedColors[idx % selectedColors.length], 0.6),
-              borderWidth: 1,
-            };
-          } else {
-            return {
-              ...baseDataset,
-              type: "line",
-              fill: false,
-              tension: 0.4,
-            };
-          }
-        }
-
-        // Configuración normal (no mixto)
-        return {
-          ...baseDataset,
-          backgroundColor:
-            data.chart_type === "bar"
-              ? withAlpha(selectedColors[idx % selectedColors.length], 0.4)
-              : withAlpha(selectedColors[idx % selectedColors.length], 0.2),
           fill: data.chart_type === "multi-line",
           tension: 0.4,
-        };
-      })
-    : [
-        {
-          label: data.title || "Serie",
-          data: data.values,
-          borderColor: selectedColors[0],
-          backgroundColor:
-            data.chart_type === "bar"
-              ? withAlpha(selectedColors[0], 0.4)
-              : withAlpha(selectedColors[0], 0.2),
-          pointBackgroundColor: selectedColors[0],
-          pointBorderColor: "#ffffff",
-          pointBorderWidth: 2,
-          pointRadius: 5,
-          pointHoverRadius: 7,
-          fill: data.chart_type === "line",
-          tension: 0.4,
           borderWidth: 3,
-        },
-      ];
+        }))
+      : [
+          {
+            label: data.title || "Serie",
+            data: data.values,
+            borderColor: selectedColors[0],
+            backgroundColor:
+              data.chart_type === "bar"
+                ? withAlpha(selectedColors[0], 0.4)
+                : withAlpha(selectedColors[0], 0.2),
+            pointBackgroundColor: selectedColors[0],
+            pointBorderColor: "#ffffff",
+            pointBorderWidth: 2,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            fill: data.chart_type === "line",
+            tension: 0.4,
+            borderWidth: 3,
+          },
+        ];
+  })();
 
   const chartData = {
     labels: data.labels,
     datasets,
   };
 
-  // ⚙️ NUEVO: Configurar escalas múltiples para gráficos mixtos
-  const getMixedScales = () => {
-    const scales = {
+  // 🆕 FUNCIÓN PARA CREAR ESCALAS MÚLTIPLES (usando datos del agente)
+  const createMixedScales = () => {
+    const baseScales = {
       x: {
         grid: {
           color: withAlpha("#374151", 0.3),
@@ -171,91 +186,112 @@ export default function ChartInline({ data, colorScheme = "default" }) {
       },
     };
 
-    // 🔥 Eje Y principal (izquierdo)
-    scales.y = {
-      type: "linear",
-      display: true,
-      position: "left",
-      grid: {
-        color: withAlpha("#374151", 0.2),
-        lineWidth: 1,
-      },
-      ticks: {
-        color: "#374151",
-        font: { size: 12, weight: "500" },
-        beginAtZero: true,
-      },
-      border: {
-        color: "#374151",
-        width: 1,
-      },
-      title: {
-        display: !!mixedConfig.leftAxisTitle,
-        text: mixedConfig.leftAxisTitle || "Eje Izquierdo",
-        color: "#374151",
-        font: { size: 14, weight: "600" },
-      },
-    };
-
-    // 🔥 Eje Y secundario (derecho) - solo si hay series que lo usen
-    const hasRightAxis = Object.values(yAxes).includes("y1");
-    if (hasRightAxis) {
-      scales.y1 = {
-        type: "linear",
+    // 🎯 CONFIGURACIÓN DE EJES Y PARA GRÁFICOS MIXTOS
+    if (isMixedChart && data.axes) {
+      // 🆕 Usar configuración de ejes del agente (si existe)
+      data.axes.forEach((axis) => {
+        baseScales[axis.id] = {
+          type: 'linear',
+          display: true,
+          position: axis.position || 'left',
+          title: {
+            display: !!axis.title,
+            text: axis.title,
+            color: "#374151",
+            font: { size: 14, weight: "600" },
+          },
+          grid: {
+            color: withAlpha("#374151", axis.position === 'right' ? 0.1 : 0.2),
+            lineWidth: 1,
+            drawOnChartArea: axis.position !== 'right', // Solo el eje izquierdo muestra grilla
+          },
+          ticks: {
+            color: "#374151",
+            font: { size: 12, weight: "500" },
+            beginAtZero: axis.beginAtZero !== false,
+          },
+          border: {
+            color: "#374151",
+            width: 1,
+          },
+        };
+      });
+    } else if (isMixedChart) {
+      // 🆕 Configuración por defecto si no hay axes definidos
+      baseScales.y = {
+        type: 'linear',
         display: true,
-        position: "right",
+        position: 'left',
+        title: {
+          display: true,
+          text: 'Eje Principal',
+          color: "#374151",
+          font: { size: 14, weight: "600" },
+        },
         grid: {
-          drawOnChartArea: false, // Solo mostrar grid del eje principal
+          color: withAlpha("#374151", 0.2),
+          lineWidth: 1,
         },
         ticks: {
-          color: "#7c3aed", // Color diferente para distinguir
+          color: "#374151",
           font: { size: 12, weight: "500" },
           beginAtZero: true,
         },
         border: {
-          color: "#7c3aed",
+          color: "#374151",
           width: 1,
         },
-        title: {
-          display: !!mixedConfig.rightAxisTitle,
-          text: mixedConfig.rightAxisTitle || "Eje Derecho",
-          color: "#7c3aed",
-          font: { size: 14, weight: "600" },
-        },
       };
-    }
 
-    // 🔥 Tercer eje Y (opcional)
-    const hasThirdAxis = Object.values(yAxes).includes("y2");
-    if (hasThirdAxis) {
-      scales.y2 = {
-        type: "linear",
-        display: true,
-        position: "right",
+      // Verificar si hay series que usan y1
+      const hasY1 = data.values.some(serie => serie.yAxisID === 'y1');
+      if (hasY1) {
+        baseScales.y1 = {
+          type: 'linear',
+          display: true,
+          position: 'right',
+          title: {
+            display: true,
+            text: 'Eje Secundario',
+            color: "#7c3aed",
+            font: { size: 14, weight: "600" },
+          },
+          grid: {
+            color: withAlpha("#7c3aed", 0.1),
+            lineWidth: 1,
+            drawOnChartArea: false,
+          },
+          ticks: {
+            color: "#7c3aed",
+            font: { size: 12, weight: "500" },
+            beginAtZero: true,
+          },
+          border: {
+            color: "#7c3aed",
+            width: 1,
+          },
+        };
+      }
+    } else {
+      // Eje Y estándar para gráficos no mixtos
+      baseScales.y = {
         grid: {
-          drawOnChartArea: false,
+          color: withAlpha("#374151", 0.2),
+          lineWidth: 1,
         },
         ticks: {
-          color: "#059669", // Verde para el tercer eje
+          color: "#374151",
           font: { size: 12, weight: "500" },
           beginAtZero: true,
         },
         border: {
-          color: "#059669",
+          color: "#374151",
           width: 1,
         },
-        title: {
-          display: !!mixedConfig.thirdAxisTitle,
-          text: mixedConfig.thirdAxisTitle || "Tercer Eje",
-          color: "#059669",
-          font: { size: 14, weight: "600" },
-        },
-        // Desplazar hacia la derecha para no solapar con y1
-        offset: true,
       };
     }
 
-    return scales;
+    return baseScales;
   };
 
   // ⚙️ Opciones mejoradas para mejor contraste con fondo naranja
@@ -263,6 +299,10 @@ export default function ChartInline({ data, colorScheme = "default" }) {
     responsive: true,
     maintainAspectRatio: false,
     layout: { padding: 16 },
+    interaction: isMixedChart ? {
+      mode: 'index',
+      intersect: false,
+    } : {},
     plugins: {
       legend: {
         position: "top",
@@ -286,16 +326,16 @@ export default function ChartInline({ data, colorScheme = "default" }) {
         padding: 12,
         displayColors: true,
         boxPadding: 6,
-        // 🔥 NUEVO: Mostrar información del eje en tooltip para gráficos mixtos
+        // 🆕 Tooltip personalizado para gráficos mixtos
         callbacks: isMixedChart ? {
-          afterLabel: function(context) {
-            const yAxisID = context.dataset.yAxisID;
-            const axisNames = {
-              'y': mixedConfig.leftAxisTitle || 'Eje Izquierdo',
-              'y1': mixedConfig.rightAxisTitle || 'Eje Derecho',
-              'y2': mixedConfig.thirdAxisTitle || 'Tercer Eje'
-            };
-            return yAxisID !== 'y' ? `(${axisNames[yAxisID]})` : '';
+          title: function(context) {
+            return context[0].label;
+          },
+          label: function(context) {
+            const dataset = context.dataset;
+            const serieType = dataset.type || 'line';
+            const axisTitle = data.axes?.find(axis => axis.id === dataset.yAxisID)?.title || '';
+            return `${dataset.label} (${serieType}): ${context.parsed.y} ${axisTitle}`;
           }
         } : {},
       },
@@ -307,45 +347,7 @@ export default function ChartInline({ data, colorScheme = "default" }) {
         padding: { bottom: 20 },
       },
     },
-    scales: isMixedChart ? getMixedScales() : {
-      x: {
-        grid: {
-          color: withAlpha("#374151", 0.3),
-          lineWidth: 1,
-        },
-        ticks: {
-          color: "#374151",
-          font: { size: 12, weight: "500" },
-          maxRotation: 45,
-          minRotation: 0,
-          autoSkip: true,
-        },
-        border: {
-          color: "#374151",
-          width: 1,
-        },
-      },
-      y: {
-        grid: {
-          color: withAlpha("#374151", 0.2),
-          lineWidth: 1,
-        },
-        ticks: {
-          color: "#374151",
-          font: { size: 12, weight: "500" },
-          beginAtZero: true,
-        },
-        border: {
-          color: "#374151",
-          width: 1,
-        },
-      },
-    },
-    // 🔥 NUEVO: Configuración específica para gráficos mixtos
-    interaction: isMixedChart ? {
-      mode: 'index',
-      intersect: false,
-    } : {},
+    scales: createMixedScales(),
   };
 
   // ⬇️ Wrapper con fondo sutil para mejor contraste
@@ -364,16 +366,7 @@ export default function ChartInline({ data, colorScheme = "default" }) {
     </div>
   );
 
-  // 🔥 NUEVO: Renderizar gráfico mixto
-  if (isMixedChart) {
-    return (
-      <Wrapper>
-        <Line data={chartData} options={options} />
-      </Wrapper>
-    );
-  }
-
-  // Renderizado normal según tipo
+  // 🎯 RENDERIZADO SEGÚN TIPO DE GRÁFICO
   switch (data.chart_type) {
     case "bar":
       return (
@@ -381,12 +374,21 @@ export default function ChartInline({ data, colorScheme = "default" }) {
           <Bar data={chartData} options={options} />
         </Wrapper>
       );
+    
     case "pie":
       return (
         <Wrapper>
           <Pie data={chartData} options={options} />
         </Wrapper>
       );
+    
+    case "mixed":
+      return (
+        <Wrapper>
+          <Line data={chartData} options={options} />
+        </Wrapper>
+      );
+    
     case "multi-line":
     case "line":
     default:
