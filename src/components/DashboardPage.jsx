@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../App';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement, PointElement, LineElement } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
-import { FaTree, FaArrowLeft, FaPlus, FaFolder, FaChartBar } from 'react-icons/fa';
+import { FaTree, FaArrowLeft, FaPlus, FaFolder, FaChartBar, FaExpand, FaCompress, FaExpandArrowsAlt } from 'react-icons/fa';
 
 // Registrar componentes de Chart.js
 ChartJS.register(
@@ -28,6 +28,10 @@ const DashboardPage = () => {
   const [chartRenderKeys, setChartRenderKeys] = useState({});
   const [showCreateCategory, setShowCreateCategory] = useState(false);
 
+  // 🆕 Estados para el layout flexible
+  const [chartSizes, setChartSizes] = useState({}); // {chartId: 'small'|'medium'|'large'}
+  const [editMode, setEditMode] = useState(false);
+
   // Estados para crear categoría
   const [newCategory, setNewCategory] = useState({
     name: '',
@@ -36,24 +40,14 @@ const DashboardPage = () => {
     color: '#3B82F6'
   });
 
-  // 🎨 Paleta de colores unificada
+  // 🎨 Paleta de colores unificada (mantenemos la misma)
   const generateColors = (count) => {
     const colors = [
-      'rgba(255, 99, 132, 0.8)',    // Rosa vibrante
-      'rgba(54, 162, 235, 0.8)',    // Azul cielo
-      'rgba(255, 205, 86, 0.8)',    // Amarillo dorado
-      'rgba(75, 192, 192, 0.8)',    // Verde agua
-      'rgba(153, 102, 255, 0.8)',   // Púrpura
-      'rgba(255, 159, 64, 0.8)',    // Naranja
-      'rgba(199, 199, 199, 0.8)',   // Gris claro
-      'rgba(83, 102, 255, 0.8)',    // Azul índigo
-      'rgba(255, 99, 255, 0.8)',    // Magenta
-      'rgba(99, 255, 132, 0.8)',    // Verde lima
-      'rgba(255, 193, 7, 0.8)',     // Ámbar
-      'rgba(156, 39, 176, 0.8)',    // Púrpura profundo
-      'rgba(0, 188, 212, 0.8)',     // Cian
-      'rgba(76, 175, 80, 0.8)',     // Verde
-      'rgba(244, 67, 54, 0.8)',     // Rojo
+      'rgba(255, 99, 132, 0.8)', 'rgba(54, 162, 235, 0.8)', 'rgba(255, 205, 86, 0.8)',
+      'rgba(75, 192, 192, 0.8)', 'rgba(153, 102, 255, 0.8)', 'rgba(255, 159, 64, 0.8)',
+      'rgba(199, 199, 199, 0.8)', 'rgba(83, 102, 255, 0.8)', 'rgba(255, 99, 255, 0.8)',
+      'rgba(99, 255, 132, 0.8)', 'rgba(255, 193, 7, 0.8)', 'rgba(156, 39, 176, 0.8)',
+      'rgba(0, 188, 212, 0.8)', 'rgba(76, 175, 80, 0.8)', 'rgba(244, 67, 54, 0.8)',
     ];
     
     const borderColors = colors.map(color => color.replace('0.8', '1'));
@@ -64,7 +58,7 @@ const DashboardPage = () => {
     };
   };
 
-  // 🎯 Opciones base unificadas para gráficos
+  // 🎯 Opciones base unificadas (mantenemos las mismas)
   const getUnifiedBaseOptions = (chartType = 'default') => ({
     responsive: true,
     maintainAspectRatio: false,
@@ -160,7 +154,86 @@ const DashboardPage = () => {
     } : {}
   });
 
-  // 📁 Función para obtener categorías con contadores
+  // 🆕 Función para obtener las clases de tamaño según el tipo
+  const getChartSizeClasses = (chartId, size) => {
+    const currentSize = size || chartSizes[chartId] || 'medium';
+    
+    switch (currentSize) {
+      case 'small':
+        return 'col-span-12 md:col-span-6 lg:col-span-4'; // Pequeño: 1/3 del ancho en desktop
+      case 'medium':
+        return 'col-span-12 md:col-span-6'; // Mediano: 1/2 del ancho en desktop
+      case 'large':
+        return 'col-span-12'; // Grande: ancho completo
+      default:
+        return 'col-span-12 md:col-span-6';
+    }
+  };
+
+  // 🆕 Función para obtener la altura según el tamaño
+  const getChartHeight = (chartId, size) => {
+    const currentSize = size || chartSizes[chartId] || 'medium';
+    
+    switch (currentSize) {
+      case 'small':
+        return 'h-64'; // 16rem
+      case 'medium':
+        return 'h-80'; // 20rem
+      case 'large':
+        return 'h-96'; // 24rem
+      default:
+        return 'h-80';
+    }
+  };
+
+  // 🆕 Función para cambiar el tamaño de un gráfico
+  const changeChartSize = (chartId, newSize) => {
+    setChartSizes(prev => ({
+      ...prev,
+      [chartId]: newSize
+    }));
+    
+    // Forzar re-render del gráfico
+    setChartRenderKeys(prev => ({
+      ...prev,
+      [chartId]: Date.now()
+    }));
+  };
+
+  // 🆕 Componente de selector de tamaño
+  const SizeSelector = ({ chartId, currentSize }) => {
+    if (!editMode) return null;
+    
+    const size = currentSize || chartSizes[chartId] || 'medium';
+    
+    return (
+      <div className="absolute top-2 right-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 p-1 flex gap-1 z-10">
+        <button
+          onClick={() => changeChartSize(chartId, 'small')}
+          className={`p-2 rounded ${size === 'small' ? 'bg-blue-500 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+          title="Pequeño (1/3)"
+        >
+          <FaCompress className="text-xs" />
+        </button>
+        <button
+          onClick={() => changeChartSize(chartId, 'medium')}
+          className={`p-2 rounded ${size === 'medium' ? 'bg-blue-500 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+          title="Mediano (1/2)"
+        >
+          <FaExpandArrowsAlt className="text-xs" />
+        </button>
+        <button
+          onClick={() => changeChartSize(chartId, 'large')}
+          className={`p-2 rounded ${size === 'large' ? 'bg-blue-500 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+          title="Grande (completo)"
+        >
+          <FaExpand className="text-xs" />
+        </button>
+      </div>
+    );
+  };
+
+  // Funciones existentes (fetchCategories, fetchDashboardsByCategory, etc.) - mantienen la misma lógica
   const fetchCategories = async () => {
     try {
       setLoading(true);
@@ -195,7 +268,6 @@ const DashboardPage = () => {
     }
   };
 
-  // 📊 Función para obtener dashboards de una categoría específica
   const fetchDashboardsByCategory = async (categoryId) => {
     try {
       setLoading(true);
@@ -222,7 +294,6 @@ const DashboardPage = () => {
 
       console.log('Dashboards de categoría obtenidos:', data);
       
-      // Procesar los datos para que sean compatibles con el renderizado existente
       const processedData = data ? data.map(dashboard => ({
         ...dashboard,
         graficos: Array.isArray(dashboard.graficos) && dashboard.graficos[0] !== null 
@@ -240,7 +311,6 @@ const DashboardPage = () => {
     }
   };
 
-  // ➕ Función para crear nueva categoría
   const createCategory = async () => {
     try {
       if (!newCategory.name.trim()) {
@@ -268,7 +338,6 @@ const DashboardPage = () => {
 
       console.log('Categoría creada:', data);
       
-      // Resetear formulario y recargar categorías
       setNewCategory({
         name: '',
         icon: '📊',
@@ -284,7 +353,6 @@ const DashboardPage = () => {
     }
   };
 
-  // 🔄 Función para actualizar gráfico (reutilizada del código original)
   const refreshChart = async (chartId, sql) => {
     try {
       setRefreshingChart(chartId);
@@ -343,7 +411,6 @@ const DashboardPage = () => {
     }
   };
 
-  // 🗑️ Función para eliminar dashboard
   const deleteDashboard = async (dashboardId) => {
     if (!confirm('¿Estás seguro de que quieres eliminar este gráfico del dashboard?')) {
       return;
@@ -375,7 +442,6 @@ const DashboardPage = () => {
     const firstRow = data[0];
     const keys = Object.keys(firstRow);
     
-    // DETECCIÓN AUTOMÁTICA DE GRÁFICOS MIXTOS
     const hasTypeColumn = keys.some(key => key.toLowerCase().includes('type') || key.toLowerCase().includes('tipo'));
     const hasMultipleNumericColumns = keys.filter(k => 
       typeof data[0][k] === "number" || data.every(row => !isNaN(Number(row[k])))
@@ -409,18 +475,8 @@ const DashboardPage = () => {
           });
 
           const axes = [
-            {
-              id: 'y',
-              position: 'left',
-              title: 'Líneas',
-              beginAtZero: true
-            },
-            {
-              id: 'y1', 
-              position: 'right',
-              title: 'Barras',
-              beginAtZero: true
-            }
+            { id: 'y', position: 'left', title: 'Líneas', beginAtZero: true },
+            { id: 'y1', position: 'right', title: 'Barras', beginAtZero: true }
           ];
 
           return { labels, values, axes, chart_type: 'mixed' };
@@ -428,7 +484,7 @@ const DashboardPage = () => {
       }
     }
 
-    // Resto de la lógica de procesamiento...
+    // Resto de la lógica de procesamiento (mantenemos la misma)
     if (data && data.length > 0 && Object.keys(data[0]).length === 3) {
       const keys = Object.keys(data[0]);
       const valorKey = keys.find(k => typeof data[0][k] === "number" || data.every(row => !isNaN(Number(row[k]))));
@@ -499,7 +555,7 @@ const DashboardPage = () => {
     }
   };
 
-  // 🎨 Función para renderizar gráficos (versión simplificada del original)
+  // Función para renderizar gráficos (mantenemos la misma lógica)
   const renderChart = (grafico) => {
     if (!grafico.values || !grafico.labels) {
       return <div className="text-gray-500">No hay datos para mostrar</div>;
@@ -588,7 +644,6 @@ const DashboardPage = () => {
 
       case 'multi-line':
       case 'mixed':
-        // Lógica para gráficos multi-línea y mixtos (simplificada)
         if (!Array.isArray(values)) return <div className="text-red-500">Datos inválidos</div>;
         
         const colors = generateColors(values.length);
@@ -647,7 +702,7 @@ const DashboardPage = () => {
     fetchCategories();
   }, []);
 
-  // 🔄 Loading state
+  // Loading y Error states (mantenemos los mismos)
   if (loading) {
     return (
       <div className="min-h-screen bg-[url('/camioncito.png')] bg-cover bg-fixed bg-bottom p-6">
@@ -661,7 +716,6 @@ const DashboardPage = () => {
     );
   }
 
-  // ❌ Error state
   if (error) {
     return (
       <div className="min-h-screen bg-[url('/camioncito.png')] bg-cover bg-fixed bg-bottom p-6">
@@ -685,7 +739,7 @@ const DashboardPage = () => {
   return (
     <div className="min-h-screen bg-[url('/camioncito.png')] bg-cover bg-fixed bg-bottom p-6">
       {/* HEADER DE NAVEGACIÓN */}
-      <div className="flex justify-between items-center bg-white/90 dark:bg-[#1c2e1f]/90 px-6 py-3 rounded-xl shadow mb-6 max-w-6xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
+      <div className="flex justify-between items-center bg-white/90 dark:bg-[#1c2e1f]/90 px-6 py-3 rounded-xl shadow mb-6 max-w-7xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <FaTree className="text-2xl text-[#D2C900]" />
           <span className="text-xl font-serif font-bold text-[#5E564D] dark:text-white">
@@ -713,7 +767,7 @@ const DashboardPage = () => {
       </div>
 
       {/* CONTENEDOR PRINCIPAL */}
-      <div className="bg-white/90 dark:bg-[#1c2e1f]/90 rounded-xl shadow-lg max-w-6xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
+      <div className="bg-white/90 dark:bg-[#1c2e1f]/90 rounded-xl shadow-lg max-w-7xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
         
         {/* VISTA DE CATEGORÍAS */}
         {!currentCategory && (
@@ -814,16 +868,17 @@ const DashboardPage = () => {
           </>
         )}
 
-        {/* VISTA DE DASHBOARD INDIVIDUAL */}
+        {/* VISTA DE DASHBOARD INDIVIDUAL CON LAYOUT FLEXIBLE */}
         {currentCategory && (
           <>
-            {/* Header con breadcrumbs */}
+            {/* Header con breadcrumbs y controles de layout */}
             <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-4">
                 <button 
                   onClick={() => {
                     setCurrentCategory(null);
                     setDashboards([]);
+                    setEditMode(false);
                   }}
                   className="p-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white transition-colors"
                 >
@@ -847,12 +902,25 @@ const DashboardPage = () => {
                   </h1>
                   
                   <p className="text-gray-600 dark:text-gray-300 mt-1">
-                    {currentCategory.description || 'Dashboard de gráficos'}
+                    {currentCategory.description || 'Dashboard de gráficos con layout flexible'}
                   </p>
                 </div>
               </div>
               
               <div className="flex gap-3">
+                {/* 🆕 Botón de modo edición */}
+                <button 
+                  onClick={() => setEditMode(!editMode)}
+                  className={`px-6 py-3 rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center gap-2 ${
+                    editMode 
+                      ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700' 
+                      : 'bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700'
+                  }`}
+                >
+                  <FaExpandArrowsAlt />
+                  {editMode ? 'Salir de Edición' : 'Editar Layout'}
+                </button>
+                
                 <button 
                   onClick={() => fetchDashboardsByCategory(currentCategory.id)}
                   className="px-6 py-3 bg-gradient-to-r from-[#D2C900] to-[#bcae00] text-black rounded-lg hover:from-[#bcae00] hover:to-[#a89800] transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
@@ -862,7 +930,20 @@ const DashboardPage = () => {
               </div>
             </div>
 
-            {/* Grid de gráficos del dashboard */}
+            {/* 🆕 Información del modo edición */}
+            {editMode && (
+              <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800 border-b border-blue-200 dark:border-blue-700">
+                <div className="flex items-center gap-2 text-blue-800 dark:text-blue-200">
+                  <FaExpandArrowsAlt />
+                  <span className="font-medium">Modo Edición Activo</span>
+                  <span className="text-sm">
+                    - Usa los controles en la esquina superior derecha de cada gráfico para cambiar su tamaño
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* 🆕 Grid flexible de gráficos */}
             <div className="p-6">
               {dashboards.length === 0 ? (
                 <div className="text-center py-16">
@@ -877,9 +958,8 @@ const DashboardPage = () => {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-12 gap-6">
                   {dashboards.map((dashboard) => {
-                    // Obtener el primer gráfico del dashboard
                     const grafico = dashboard.graficos && dashboard.graficos.length > 0 ? dashboard.graficos[0] : null;
                     
                     if (!grafico) return null;
@@ -887,65 +967,60 @@ const DashboardPage = () => {
                     return (
                       <div 
                         key={dashboard.id} 
-                        className="bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-3 hover:scale-105 overflow-hidden border border-gray-100 dark:border-gray-700"
+                        className={`${getChartSizeClasses(grafico.id)} relative`}
                       >
-                        {/* Header de la tarjeta */}
-                        <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 px-6 py-4 border-b border-gray-200 dark:border-gray-600">
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1">
-                              <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2 leading-tight">
-                                {grafico.title || dashboard.name || 'Sin título'}
-                              </h3>
-                              <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-                                <span className="flex items-center bg-white dark:bg-gray-700 px-3 py-1 rounded-full shadow-sm">
-                                  {grafico.chart_type === 'bar' && '📊'}
-                                  {grafico.chart_type === 'pie' && '🥧'}
-                                  {grafico.chart_type === 'line' && '📈'}
-                                  {grafico.chart_type === 'multi-line' && '📊'}
-                                  {grafico.chart_type === 'mixed' && '🎯'}
-                                  <span className="ml-1 capitalize font-medium">
-                                    {grafico.chart_type === 'mixed' ? 'Mixto' : grafico.chart_type}
+                        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100 dark:border-gray-700 h-full">
+                          {/* 🆕 Selector de tamaño (solo en modo edición) */}
+                          <SizeSelector chartId={grafico.id} currentSize={chartSizes[grafico.id]} />
+                          
+                          {/* Header compacto de la tarjeta */}
+                          <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-600">
+                            <div className="flex justify-between items-center">
+                              <div className="flex-1 min-w-0">
+                                <h3 className="text-lg font-bold text-gray-800 dark:text-white truncate">
+                                  {grafico.title || dashboard.name || 'Sin título'}
+                                </h3>
+                                <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
+                                  <span className="flex items-center bg-white dark:bg-gray-700 px-2 py-1 rounded-full">
+                                    {grafico.chart_type === 'bar' && '📊'}
+                                    {grafico.chart_type === 'pie' && '🥧'}
+                                    {grafico.chart_type === 'line' && '📈'}
+                                    {grafico.chart_type === 'multi-line' && '📊'}
+                                    {grafico.chart_type === 'mixed' && '🎯'}
+                                    <span className="ml-1 capitalize">
+                                      {grafico.chart_type === 'mixed' ? 'Mixto' : grafico.chart_type}
+                                    </span>
                                   </span>
-                                </span>
-                                <span className="flex items-center">
-                                  📅 {new Date(grafico.created_at).toLocaleDateString()}
-                                </span>
+                                </div>
                               </div>
                               
-                              {/* Información de ejes para gráficos mixtos */}
-                              {grafico.chart_type === 'mixed' && grafico.axes && (
-                                <div className="mt-2">
-                                  <div className="text-xs text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded">
-                                    Ejes: {safeJsonParse(grafico.axes, []).map(axis => axis.title).join(', ')}
-                                  </div>
+                              {!editMode && (
+                                <div className="flex space-x-1 ml-2">
+                                  <button
+                                    onClick={() => refreshChart(grafico.id, grafico.sql)}
+                                    disabled={refreshingChart === grafico.id}
+                                    className="p-2 bg-gradient-to-r from-green-500 to-green-600 text-white text-xs rounded hover:from-green-600 hover:to-green-700 disabled:opacity-50 transition-all duration-300"
+                                    title="Actualizar datos"
+                                  >
+                                    {refreshingChart === grafico.id ? '⏳' : '🔄'}
+                                  </button>
+                                  <button
+                                    onClick={() => deleteDashboard(dashboard.id)}
+                                    className="p-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-xs rounded hover:from-red-600 hover:to-red-700 transition-all duration-300"
+                                    title="Eliminar gráfico"
+                                  >
+                                    🗑️
+                                  </button>
                                 </div>
                               )}
                             </div>
-                            
-                            <div className="flex space-x-2 ml-4">
-                              <button
-                                onClick={() => refreshChart(grafico.id, grafico.sql)}
-                                disabled={refreshingChart === grafico.id}
-                                className="px-3 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white text-sm rounded-lg hover:from-green-600 hover:to-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-110"
-                                title="Actualizar datos"
-                              >
-                                {refreshingChart === grafico.id ? '⏳' : '🔄'}
-                              </button>
-                              <button
-                                onClick={() => deleteDashboard(dashboard.id)}
-                                className="px-3 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-sm rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-110"
-                                title="Eliminar gráfico"
-                              >
-                                🗑️
-                              </button>
-                            </div>
                           </div>
-                        </div>
 
-                        {/* Contenido del gráfico */}
-                        <div className="p-6">
-                          <div className="h-64 relative bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-700 rounded-lg">
-                            {renderChart(grafico)}
+                          {/* 🆕 Contenido del gráfico con altura dinámica */}
+                          <div className="p-4">
+                            <div className={`${getChartHeight(grafico.id)} relative bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-700 rounded-lg`}>
+                              {renderChart(grafico)}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -958,11 +1033,10 @@ const DashboardPage = () => {
         )}
       </div>
 
-      {/* MODAL PARA CREAR CATEGORÍA */}
+      {/* MODAL PARA CREAR CATEGORÍA (mantenemos el mismo) */}
       {showCreateCategory && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full border border-gray-200 dark:border-gray-700">
-            {/* Header del modal */}
             <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
                 ➕ Nueva Categoría
@@ -975,9 +1049,7 @@ const DashboardPage = () => {
               </button>
             </div>
 
-            {/* Contenido del modal */}
             <div className="p-6 space-y-4">
-              {/* Nombre */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Nombre de la categoría *
@@ -991,7 +1063,6 @@ const DashboardPage = () => {
                 />
               </div>
 
-              {/* Icono */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Icono
@@ -1013,7 +1084,6 @@ const DashboardPage = () => {
                 </div>
               </div>
 
-              {/* Descripción */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Descripción (opcional)
@@ -1027,7 +1097,6 @@ const DashboardPage = () => {
                 />
               </div>
 
-              {/* Color */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Color del tema
@@ -1049,7 +1118,6 @@ const DashboardPage = () => {
               </div>
             </div>
 
-            {/* Footer del modal */}
             <div className="flex gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
               <button 
                 onClick={() => setShowCreateCategory(false)}
