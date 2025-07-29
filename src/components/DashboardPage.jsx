@@ -22,7 +22,7 @@ const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshingChart, setRefreshingChart] = useState(null);
-  const [activeTab, setActiveTab] = useState('all'); // Nueva state para pestañas
+  const [activeTab, setActiveTab] = useState('all');
   const [chartRenderKeys, setChartRenderKeys] = useState({});
 
   // Función para obtener los dashboards del usuario
@@ -31,7 +31,6 @@ const DashboardPage = () => {
       setLoading(true);
       setError(null);
 
-      // Obtener el usuario actual
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
       if (userError) {
@@ -42,7 +41,7 @@ const DashboardPage = () => {
         throw new Error('Usuario no autenticado');
       }
 
-      // Consulta para obtener dashboards con sus gráficos
+      // 🆕 Incluir campo 'axes' en la consulta para gráficos mixtos
       const { data, error } = await supabase
         .from('dashboard')
         .select(`
@@ -55,6 +54,7 @@ const DashboardPage = () => {
             chart_type,
             values,
             labels,
+            axes,
             sql,
             created_at,
             updated_at
@@ -68,7 +68,6 @@ const DashboardPage = () => {
       }
 
       console.log('Dashboards obtenidos:', data);
-      // Forzar una nueva referencia para que React detecte cambios
       const processedData = data ? data.map(dashboard => ({
         ...dashboard,
         graficos: Array.isArray(dashboard.graficos) 
@@ -85,68 +84,69 @@ const DashboardPage = () => {
       }
     };
 
-  // Función para actualizar un gráfico ejecutando su SQL
-// Función mejorada para actualizar un gráfico ejecutando su SQL
-const refreshChart = async (chartId, sql) => {
-  try {
-    setRefreshingChart(chartId);
-    console.log(`🔄 Actualizando gráfico ${chartId} con SQL:`, sql);
-    
-    // Ejecutar la query SQL
-    const { data, error } = await supabase.rpc('execute_sql', { query: sql });
-    
-    if (error) {
-      throw new Error('Error al ejecutar SQL: ' + error.message);
-    }
+  // 🆕 Función mejorada para actualizar gráficos mixtos
+  const refreshChart = async (chartId, sql) => {
+    try {
+      setRefreshingChart(chartId);
+      console.log(`🔄 Actualizando gráfico ${chartId} con SQL:`, sql);
+      
+      const { data, error } = await supabase.rpc('execute_sql', { query: sql });
+      
+      if (error) {
+        throw new Error('Error al ejecutar SQL: ' + error.message);
+      }
 
-    console.log('📊 Datos obtenidos del SQL:', data);
+      console.log('📊 Datos obtenidos del SQL:', data);
 
-    if (!data || data.length === 0) {
-      alert('La consulta SQL no devolvió datos. Verifica tu consulta.');
-      return;
-    }
+      if (!data || data.length === 0) {
+        alert('La consulta SQL no devolvió datos. Verifica tu consulta.');
+        return;
+      }
 
-    // Procesar los datos del SQL
-    const processedData = processChartData(data);
-    console.log('🎯 Datos procesados:', processedData);
+      const processedData = processChartData(data);
+      console.log('🎯 Datos procesados:', processedData);
 
-    // Actualizar el gráfico en la base de datos
-    const { error: updateError } = await supabase
-      .from('graficos')
-      .update({
+      // 🆕 Actualizar también axes si existen
+      const updateData = {
         values: processedData.values,
         labels: processedData.labels,
         updated_at: new Date().toISOString()
-      })
-      .eq('id', chartId);
+      };
 
-    if (updateError) {
-      throw new Error('Error al actualizar gráfico: ' + updateError.message);
+      if (processedData.axes) {
+        updateData.axes = processedData.axes;
+      }
+
+      const { error: updateError } = await supabase
+        .from('graficos')
+        .update(updateData)
+        .eq('id', chartId);
+
+      if (updateError) {
+        throw new Error('Error al actualizar gráfico: ' + updateError.message);
+      }
+
+      console.log('✅ Gráfico actualizado en BD');
+
+      setChartRenderKeys(prev => ({
+        ...prev,
+        [chartId]: Date.now()
+      }));
+
+      setTimeout(async () => {
+        await fetchDashboards();
+        alert('¡Gráfico actualizado exitosamente!');
+      }, 500);
+      
+    } catch (err) {
+      console.error('❌ Error al actualizar gráfico:', err);
+      alert('Error al actualizar gráfico: ' + err.message);
+    } finally {
+      setRefreshingChart(null);
     }
+  };
 
-    console.log('✅ Gráfico actualizado en BD');
-
-    // CLAVE: Forzar re-render del gráfico específico
-    setChartRenderKeys(prev => ({
-      ...prev,
-      [chartId]: Date.now() // Nueva key única para este gráfico
-    }));
-
-    // Esperar un momento y luego refrescar datos
-    setTimeout(async () => {
-      await fetchDashboards();
-      alert('¡Gráfico actualizado exitosamente!');
-    }, 500);
-    
-  } catch (err) {
-    console.error('❌ Error al actualizar gráfico:', err);
-    alert('Error al actualizar gráfico: ' + err.message);
-  } finally {
-    setRefreshingChart(null);
-  }
-};
-
-  // Función mejorada para procesar datos del SQL
+  // 🆕 Función mejorada para procesar datos con soporte para gráficos mixtos
   const processChartData = (data) => {
     if (!data || data.length === 0) {
       return { values: [], labels: [] };
@@ -156,8 +156,73 @@ const refreshChart = async (chartId, sql) => {
     const keys = Object.keys(firstRow);
     
     console.log('Processing chart data:', { data, keys });
+
+    // 🎯 DETECCIÓN AUTOMÁTICA DE GRÁFICOS MIXTOS
+    // Buscar patrones que indiquen necesidad de gráfico mixto
+    const hasTypeColumn = keys.some(key => key.toLowerCase().includes('type') || key.toLowerCase().includes('tipo'));
+    const hasMultipleNumericColumns = keys.filter(k => 
+      typeof data[0][k] === "number" || data.every(row => !isNaN(Number(row[k])))
+    ).length > 1;
+
+    // Si hay columna de tipo o múltiples columnas numéricas, podría ser mixto
+    if (hasTypeColumn || hasMultipleNumericColumns) {
+      console.log('🎯 Posible gráfico mixto detectado');
+      
+      // Buscar columna de fecha/etiqueta
+      let labelKey = keys.find(k => k.toLowerCase().includes('fecha') || k.toLowerCase().includes('date')) || keys[0];
+      
+      // Si hay columna de tipo explícita
+      if (hasTypeColumn) {
+        const typeKey = keys.find(key => key.toLowerCase().includes('type') || key.toLowerCase().includes('tipo'));
+        const valueKey = keys.find(k => typeof data[0][k] === "number" || data.every(row => !isNaN(Number(row[k]))));
+        const nameKey = keys.find(k => k !== labelKey && k !== typeKey && k !== valueKey);
+
+        if (typeKey && valueKey) {
+          const labels = [...new Set(data.map(row => row[labelKey]))].sort();
+          const series = [...new Set(data.map(row => row[nameKey || 'serie']))];
+          
+          const values = series.map(serie => {
+            const serieData = data.filter(row => row[nameKey || 'serie'] === serie);
+            const serieType = serieData[0]?.[typeKey] || 'line';
+            
+            return {
+              name: serie,
+              type: serieType,
+              data: labels.map(label => {
+                const row = serieData.find(r => r[labelKey] === label);
+                return row ? Number(row[valueKey]) : 0;
+              }),
+              yAxisID: serieType === 'bar' ? 'y1' : 'y' // Diferentes ejes para tipos diferentes
+            };
+          });
+
+          // Crear configuración de ejes para gráfico mixto
+          const axes = [
+            {
+              id: 'y',
+              position: 'left',
+              title: 'Líneas',
+              beginAtZero: true
+            },
+            {
+              id: 'y1', 
+              position: 'right',
+              title: 'Barras',
+              beginAtZero: true
+            }
+          ];
+
+          return {
+            labels,
+            values,
+            axes,
+            chart_type: 'mixed'
+          };
+        }
+      }
+    }
+
     // Detecta automáticamente formato apilado y lo pivotea a multi-line (dinámico)
-    // MODIFICADO para priorizar "fecha" como eje x si existe
     if (
       data &&
       data.length > 0 &&
@@ -165,7 +230,6 @@ const refreshChart = async (chartId, sql) => {
     ) {
       const keys = Object.keys(data[0]);
     
-      // Detecta columna de valor numérico
       const valorKey = keys.find(
         k => typeof data[0][k] === "number" ||
              data.every(row => !isNaN(Number(row[k])))
@@ -174,20 +238,15 @@ const refreshChart = async (chartId, sql) => {
         return null;
       }
     
-      // Si existe columna "fecha", usarla siempre como eje x
       let labelKey, serieKey;
       if (keys.includes("fecha")) {
         labelKey = "fecha";
         serieKey = keys.find(k => k !== valorKey && k !== "fecha");
       } else {
-        // Si no, sigue normal
         [labelKey, serieKey] = keys.filter(k => k !== valorKey);
       }
     
-      // Fechas como labels ordenadas
       const labels = [...new Set(data.map(row => row[labelKey]))].sort();
-    
-      // Series únicas
       const series = [...new Set(data.map(row => row[serieKey]))];
     
       const values = series.map(serie => ({
@@ -207,9 +266,8 @@ const refreshChart = async (chartId, sql) => {
         };
       }
     }
-
     
-    // Si hay exactamente 2 columnas, usar una como labels y otra como values (para gráficos simples)
+    // Si hay exactamente 2 columnas, usar una como labels y otra como values
     if (keys.length === 2) {
       return {
         labels: data.map(row => row[keys[0]]),
@@ -217,12 +275,11 @@ const refreshChart = async (chartId, sql) => {
       };
     }
     
-    // Para gráficos multi-line: primera columna como labels, resto como series de datos
+    // Para gráficos multi-line: primera columna como labels, resto como series
     if (keys.length > 2) {
       const labelKey = keys[0];
       const valueKeys = keys.slice(1);
       
-      // CORRECCIÓN: Crear estructura compatible con multi-line
       const multiLineData = valueKeys.map(key => ({
         label: key,
         data: data.map(row => row[key])
@@ -232,7 +289,7 @@ const refreshChart = async (chartId, sql) => {
       
       return {
         labels: data.map(row => row[labelKey]),
-        values: multiLineData // Array de objetos con {label, data}
+        values: multiLineData
       };
     }
     
@@ -282,7 +339,7 @@ const refreshChart = async (chartId, sql) => {
     if (!jsonString) return fallback;
     
     if (typeof jsonString !== 'string') {
-      return jsonString; // Ya es un objeto/array
+      return jsonString;
     }
     
     try {
@@ -293,7 +350,7 @@ const refreshChart = async (chartId, sql) => {
     }
   };
 
-  // Función mejorada para renderizar un gráfico
+  // 🆕 Función mejorada para renderizar gráficos con soporte mixto
   const renderChart = (grafico) => {
     console.log('🎨 Renderizando gráfico:', {
       id: grafico.id,
@@ -301,140 +358,263 @@ const refreshChart = async (chartId, sql) => {
       type: grafico.chart_type,
       values: grafico.values,
       labels: grafico.labels,
+      axes: grafico.axes,
       updated_at: grafico.updated_at
-  });
+    });
 
-  if (!grafico.values || !grafico.labels) {
-    return <div className="text-gray-500">No hay datos para mostrar</div>;
-  }
+    if (!grafico.values || !grafico.labels) {
+      return <div className="text-gray-500">No hay datos para mostrar</div>;
+    }
 
-  // Parsear datos de forma segura
-  let values = safeJsonParse(grafico.values, []);
-  let labels = safeJsonParse(grafico.labels, []);
+    let values = safeJsonParse(grafico.values, []);
+    let labels = safeJsonParse(grafico.labels, []);
+    let axes = safeJsonParse(grafico.axes, null);
 
-  console.log('📋 Datos parseados:', { values, labels, type: grafico.chart_type });
+    console.log('📋 Datos parseados:', { values, labels, axes, type: grafico.chart_type });
 
-  if (!values || !labels || (Array.isArray(values) && values.length === 0)) {
-    return <div className="text-gray-500">No hay datos válidos para mostrar</div>;
-  }
+    if (!values || !labels || (Array.isArray(values) && values.length === 0)) {
+      return <div className="text-gray-500">No hay datos válidos para mostrar</div>;
+    }
 
-  // Key única que GARANTIZA re-render
-  const forceRenderKey = chartRenderKeys[grafico.id] || 0;
-  const chartKey = `chart-${grafico.id}-${forceRenderKey}-${grafico.updated_at}`;
-  
-  console.log('🔑 Chart key:', chartKey);
+    const forceRenderKey = chartRenderKeys[grafico.id] || 0;
+    const chartKey = `chart-${grafico.id}-${forceRenderKey}-${grafico.updated_at}`;
+    
+    console.log('🔑 Chart key:', chartKey);
 
-  let chartData;
+    let chartData;
 
-  // Función para crear opciones base con destrucción completa
-  const getBaseOptions = () => ({
-    responsive: true,
-    maintainAspectRatio: false,
-    // FORZAR destrucción completa del canvas
-    animation: {
-      duration: 0, // Sin animación para evitar conflictos
-      onComplete: function() {
-        console.log('🎬 Chart render completed for:', grafico.id);
+    // 🆕 Función para crear escalas dinámicas para gráficos mixtos
+    const createMixedScales = () => {
+      const scales = {
+        x: {
+          type: 'category',
+          labels: labels
+        }
+      };
+
+      if (axes && Array.isArray(axes)) {
+        axes.forEach(axis => {
+          scales[axis.id] = {
+            type: 'linear',
+            display: true,
+            position: axis.position || 'left',
+            title: {
+              display: !!axis.title,
+              text: axis.title
+            },
+            grid: {
+              drawOnChartArea: axis.position !== 'right'
+            },
+            beginAtZero: axis.beginAtZero !== false
+          };
+        });
       }
-    },
-    // Forzar redibujado
-    plugins: {
-      legend: {
-        display: true
-      }
-    },
-    // IMPORTANTE: Evitar cache de Chart.js
-    elements: {
-      point: {
-        radius: function(context) {
-          // Cambiar radius dinámicamente para forzar redibujado
-          return 3 + (forceRenderKey % 2);
+
+      return scales;
+    };
+
+    const getBaseOptions = () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: {
+        duration: 0,
+        onComplete: function() {
+          console.log('🎬 Chart render completed for:', grafico.id);
+        }
+      },
+      plugins: {
+        legend: {
+          display: true
+        }
+      },
+      elements: {
+        point: {
+          radius: function(context) {
+            return 3 + (forceRenderKey % 2);
+          }
         }
       }
-    }
-  });
+    });
 
-  // Configurar datos según el tipo de gráfico
-  switch (grafico.chart_type) {
-    case 'bar':
-      chartData = {
-        labels: labels,
-        datasets: [{
-          label: 'Datos',
-          data: values,
-          backgroundColor: `rgba(54, 162, 235, ${0.5 + (forceRenderKey % 100) * 0.001})`, // Cambio sutil para forzar update
-          borderColor: 'rgba(54, 162, 235, 1)',
-          borderWidth: 1
-        }]
-      };
-      return (
-        <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
-          <Bar 
-            key={chartKey} // Key también en el componente Chart
-            data={chartData} 
-            options={getBaseOptions()}
-            redraw={true} // Forzar redibujado
-          />
-        </div>
-      );
+    // 🎯 Renderizado según tipo de gráfico
+    switch (grafico.chart_type) {
+      case 'bar':
+        chartData = {
+          labels: labels,
+          datasets: [{
+            label: 'Datos',
+            data: values,
+            backgroundColor: `rgba(54, 162, 235, ${0.5 + (forceRenderKey % 100) * 0.001})`,
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+          }]
+        };
+        return (
+          <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
+            <Bar 
+              key={chartKey}
+              data={chartData} 
+              options={getBaseOptions()}
+              redraw={true}
+            />
+          </div>
+        );
 
-    case 'pie':
-      const pieColors = generateColors(Array.isArray(values) ? values.length : 1);
-      chartData = {
-        labels: labels,
-        datasets: [{
-          data: values,
-          backgroundColor: pieColors.backgrounds,
-          borderColor: pieColors.borders,
-          borderWidth: 1
-        }]
-      };
-      return (
-        <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
-          <Pie 
-            key={chartKey}
-            data={chartData} 
-            options={getBaseOptions()}
-            redraw={true}
-          />
-        </div>
-      );
+      case 'pie':
+        const pieColors = generateColors(Array.isArray(values) ? values.length : 1);
+        chartData = {
+          labels: labels,
+          datasets: [{
+            data: values,
+            backgroundColor: pieColors.backgrounds,
+            borderColor: pieColors.borders,
+            borderWidth: 1
+          }]
+        };
+        return (
+          <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
+            <Pie 
+              key={chartKey}
+              data={chartData} 
+              options={getBaseOptions()}
+              redraw={true}
+            />
+          </div>
+        );
 
-    case 'line':
-      chartData = {
-        labels: labels,
-        datasets: [{
-          label: 'Datos',
-          data: values,
-          fill: false,
-          borderColor: 'rgba(75, 192, 192, 1)',
-          backgroundColor: 'rgba(75, 192, 192, 0.2)',
-          tension: 0.1
-        }]
-      };
-      return (
-        <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
-          <Line 
-            key={chartKey}
-            data={chartData} 
-            options={getBaseOptions()}
-            redraw={true}
-          />
-        </div>
-      );
+      case 'line':
+        chartData = {
+          labels: labels,
+          datasets: [{
+            label: 'Datos',
+            data: values,
+            fill: false,
+            borderColor: 'rgba(75, 192, 192, 1)',
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            tension: 0.1
+          }]
+        };
+        return (
+          <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
+            <Line 
+              key={chartKey}
+              data={chartData} 
+              options={getBaseOptions()}
+              redraw={true}
+            />
+          </div>
+        );
+
+      // 🆕 CASO PARA GRÁFICOS MIXTOS
+      case 'mixed':
+        let mixedDatasets = [];
+        
+        console.log('🎯 Procesando gráfico mixto con values:', values);
+        
+        if (Array.isArray(values) && values.length > 0) {
+          const colors = generateColors(values.length);
+          
+          mixedDatasets = values.map((serie, index) => {
+            const baseDataset = {
+              label: serie.name || serie.label || `Serie ${index + 1}`,
+              data: Array.isArray(serie.data) ? serie.data : [],
+              borderColor: colors.borders[index],
+              pointBackgroundColor: colors.borders[index],
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+              pointHoverRadius: 6
+            };
+
+            // Configuración específica por tipo
+            if (serie.type === 'bar') {
+              return {
+                ...baseDataset,
+                type: 'bar',
+                backgroundColor: colors.backgrounds[index],
+                yAxisID: serie.yAxisID || 'y1',
+                order: 2
+              };
+            } else {
+              return {
+                ...baseDataset,
+                type: 'line',
+                backgroundColor: 'transparent',
+                fill: false,
+                tension: 0.4,
+                yAxisID: serie.yAxisID || 'y',
+                order: 1
+              };
+            }
+          });
+        }
+
+        console.log('🎨 Mixed datasets generados:', mixedDatasets);
+
+        if (mixedDatasets.length === 0) {
+          return (
+            <div className="text-red-500">
+              <div>No se pudieron procesar los datos del gráfico mixto</div>
+              <div className="text-xs mt-2 bg-gray-100 p-2 rounded overflow-auto max-h-32">
+                <div>Datos recibidos:</div>
+                <pre className="text-xs">{JSON.stringify(values, null, 2)}</pre>
+              </div>
+            </div>
+          );
+        }
+
+        chartData = {
+          labels: labels,
+          datasets: mixedDatasets
+        };
+        
+        return (
+          <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
+            <Line 
+              key={chartKey}
+              data={chartData} 
+              options={{
+                ...getBaseOptions(),
+                interaction: {
+                  mode: 'index',
+                  intersect: false,
+                },
+                plugins: {
+                  legend: {
+                    display: true,
+                    position: 'top'
+                  },
+                  tooltip: {
+                    callbacks: {
+                      title: function(context) {
+                        return context[0].label;
+                      },
+                      label: function(context) {
+                        const dataset = context.dataset;
+                        const serieType = dataset.type || 'line';
+                        const axisTitle = axes?.find(axis => axis.id === dataset.yAxisID)?.title || '';
+                        return `${dataset.label} (${serieType}): ${context.parsed.y} ${axisTitle}`;
+                      }
+                    }
+                  }
+                },
+                scales: createMixedScales()
+              }}
+              redraw={true}
+            />
+          </div>
+        );
 
       case 'multi-line':
         let datasets = [];
         
         console.log('Procesando multi-line con values:', values);
         
-        // CORRECCIÓN ESPECÍFICA: Manejar el formato real de los datos
         if (Array.isArray(values) && values.length > 0) {
-          // Caso 1: Array de objetos con estructura {name, data} (formato real)
           if (typeof values[0] === 'object' && values[0] !== null && 'name' in values[0] && 'data' in values[0]) {
             const colors = generateColors(values.length);
             datasets = values.map((series, index) => ({
-              label: series.name, // Usar 'name' en lugar de 'label'
+              label: series.name,
               data: Array.isArray(series.data) ? series.data : [],
               borderColor: colors.borders[index],
               backgroundColor: colors.backgrounds[index],
@@ -442,7 +622,6 @@ const refreshChart = async (chartId, sql) => {
               tension: 0.1
             }));
           }
-          // Caso 2: Array de objetos con estructura {label, data} (formato esperado anteriormente)
           else if (typeof values[0] === 'object' && values[0] !== null && 'label' in values[0] && 'data' in values[0]) {
             const colors = generateColors(values.length);
             datasets = values.map((series, index) => ({
@@ -454,7 +633,6 @@ const refreshChart = async (chartId, sql) => {
               tension: 0.1
             }));
           } 
-          // Caso 3: Array de arrays [[data1], [data2], ...]
           else if (Array.isArray(values[0])) {
             const colors = generateColors(values.length);
             datasets = values.map((series, index) => ({
@@ -466,7 +644,6 @@ const refreshChart = async (chartId, sql) => {
               tension: 0.1
             }));
           }
-          // Caso 4: Array simple de valores [1, 2, 3, ...] - convertir a dataset único
           else if (typeof values[0] === 'number' || typeof values[0] === 'string') {
             datasets = [{
               label: 'Datos',
@@ -478,12 +655,10 @@ const refreshChart = async (chartId, sql) => {
             }];
           }
         }
-        // Si values es un objeto (no array), intentar procesarlo
         else if (values && typeof values === 'object' && !Array.isArray(values)) {
           const keys = Object.keys(values);
           console.log('Values es objeto con keys:', keys);
           
-          // Si las keys son nombres de series y los valores son arrays
           if (keys.length > 0) {
             const colors = generateColors(keys.length);
             datasets = keys.map((key, index) => {
@@ -499,7 +674,6 @@ const refreshChart = async (chartId, sql) => {
             });
           }
         }
-        // Si values es un string que parece JSON, intentar parsearlo nuevamente
         else if (typeof values === 'string') {
           try {
             const reparsedValues = JSON.parse(values);
@@ -564,54 +738,7 @@ const refreshChart = async (chartId, sql) => {
           />
         </div>
       );
-      case 'mixto':
-      // Para gráficos mixtos: cada dataset tiene un type ("bar" o "line")
-      if (!Array.isArray(values)) {
-        return <div className="text-gray-500">Datos mixtos inválidos</div>;
-      }
-
-      // Paleta de colores, puedes usar tu función generateColors o el array COLORS si lo tienes global
-      const colors = generateColors(values.length);
-
-      chartData = {
-        labels: labels,
-        datasets: values.map((serie, idx) => ({
-          label: serie.name,
-          type: serie.type, // "bar" o "line"
-          data: serie.data,
-          borderColor: colors.borders[idx % colors.borders.length],
-          backgroundColor:
-            serie.type === "bar"
-              ? colors.backgrounds[idx % colors.backgrounds.length]
-              : colors.backgrounds[idx % colors.backgrounds.length] + "80", // un poco más transparente
-          fill: false,
-          tension: 0.3,
-          order: serie.type === "line" ? 1 : 2,
-        }))
-      };
-
-      return (
-        <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
-          <Bar
-            key={chartKey}
-            data={chartData}
-            options={{
-              ...getBaseOptions(),
-              plugins: {
-                legend: {
-                  display: true,
-                  position: 'top'
-                }
-              },
-              scales: {
-                y: { beginAtZero: true }
-              }
-            }}
-            redraw={true}
-          />
-        </div>
-      );
-
+      
       default:
         return <div className="text-gray-500">Tipo de gráfico no soportado: {grafico.chart_type}</div>;
     }
@@ -633,7 +760,6 @@ const refreshChart = async (chartId, sql) => {
         throw new Error('Error al eliminar dashboard: ' + error.message);
       }
 
-      // Refrescar la lista
       await fetchDashboards();
     } catch (err) {
       console.error('Error al eliminar dashboard:', err);
@@ -661,7 +787,7 @@ const refreshChart = async (chartId, sql) => {
     return allCharts.filter(({ grafico }) => grafico.chart_type === activeTab);
   };
 
-  // Función para obtener tipos únicos de gráficos
+  // 🆕 Función para obtener tipos únicos incluyendo 'mixed'
   const getUniqueChartTypes = () => {
     const types = new Set();
     dashboards.forEach((dashboard) => {
@@ -808,7 +934,7 @@ const refreshChart = async (chartId, sql) => {
           </button>
         </div>
 
-        {/* Pestañas de navegación */}
+        {/* 🆕 Pestañas de navegación mejoradas con soporte para gráficos mixtos */}
         <div className="p-6 pb-0">
           <div className="bg-gray-100 dark:bg-gray-800 rounded-lg shadow-lg p-1 inline-flex space-x-1">
             <button
@@ -828,14 +954,16 @@ const refreshChart = async (chartId, sql) => {
                 'bar': '📊',
                 'pie': '🥧',
                 'line': '📈',
-                'multi-line': '📊'
+                'multi-line': '📊',
+                'mixed': '🎯' // 🆕 Icono para gráficos mixtos
               }[type] || '📊';
               
               const label = {
                 'bar': 'Barras',
                 'pie': 'Circular',
                 'line': 'Líneas',
-                'multi-line': 'Multi-Líneas'
+                'multi-line': 'Multi-Líneas',
+                'mixed': 'Mixtos' // 🆕 Etiqueta para gráficos mixtos
               }[type] || type;
 
               return (
@@ -854,6 +982,7 @@ const refreshChart = async (chartId, sql) => {
             })}
           </div>
         </div>
+
         {/* Grid de gráficos */}
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -871,16 +1000,29 @@ const refreshChart = async (chartId, sql) => {
                       </h3>
                       <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
                         <span className="flex items-center">
+                          {/* 🆕 Iconos actualizados incluyendo mixtos */}
                           {grafico.chart_type === 'bar' && '📊'}
                           {grafico.chart_type === 'pie' && '🥧'}
                           {grafico.chart_type === 'line' && '📈'}
                           {grafico.chart_type === 'multi-line' && '📊'}
-                          <span className="ml-1 capitalize">{grafico.chart_type}</span>
+                          {grafico.chart_type === 'mixed' && '🎯'}
+                          <span className="ml-1 capitalize">
+                            {grafico.chart_type === 'mixed' ? 'Mixto' : grafico.chart_type}
+                          </span>
                         </span>
                         <span className="flex items-center">
                           📅 {new Date(grafico.created_at).toLocaleDateString()}
                         </span>
                       </div>
+                      
+                      {/* 🆕 Mostrar información de ejes para gráficos mixtos */}
+                      {grafico.chart_type === 'mixed' && grafico.axes && (
+                        <div className="mt-2">
+                          <div className="text-xs text-gray-400 dark:text-gray-500">
+                            Ejes: {safeJsonParse(grafico.axes, []).map(axis => axis.title).join(', ')}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     
                     <div className="flex space-x-2">
@@ -912,23 +1054,25 @@ const refreshChart = async (chartId, sql) => {
               </div>
             ))}
           </div>
-        {/* Mensaje cuando no hay gráficos en la pestaña activa */}
-        {filteredCharts.length === 0 && activeTab !== 'all' && (
-          <div className="text-center py-16">
-            <div className="bg-white rounded-xl shadow-lg p-8 max-w-md mx-auto">
-              <div className="text-6xl mb-4">🔍</div>
-              <div className="text-gray-600 text-lg mb-2">
-                No hay gráficos de tipo "{activeTab}"
-              </div>
-              <div className="text-gray-400">
-                Crea más gráficos o cambia a otra pestaña
+
+          {/* Mensaje cuando no hay gráficos en la pestaña activa */}
+          {filteredCharts.length === 0 && activeTab !== 'all' && (
+            <div className="text-center py-16">
+              <div className="bg-white rounded-xl shadow-lg p-8 max-w-md mx-auto">
+                <div className="text-6xl mb-4">🔍</div>
+                <div className="text-gray-600 text-lg mb-2">
+                  No hay gráficos de tipo "{activeTab}"
+                </div>
+                <div className="text-gray-400">
+                  Crea más gráficos o cambia a otra pestaña
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
       </div>
     </div>
   );
 };
+
 export default DashboardPage;
