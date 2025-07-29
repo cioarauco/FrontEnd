@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { supabase } from '../App';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaUserCircle, FaTree, FaTrashAlt } from 'react-icons/fa';
+import { FaUserCircle, FaTree, FaTrashAlt, FaFolder, FaTimes, FaPlus } from 'react-icons/fa';
 import ChartFromSQL from '../components/ChartFromSQL';
 import ChartInline from '../components/ChartInline';
 
@@ -16,6 +16,19 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false);
   const [frequentQuestions, setFrequentQuestions] = useState([]);
   const chatEndRef = useRef(null);
+
+  // 🆕 Estados para el selector de categorías
+  const [categories, setCategories] = useState([]);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [currentChartToSave, setCurrentChartToSave] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [showCreateCategory, setShowCreateCategory] = useState(false);
+  const [newCategory, setNewCategory] = useState({
+    name: '',
+    icon: '📊',
+    description: '',
+    color: '#3B82F6'
+  });
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -47,7 +60,77 @@ export default function ChatPage() {
     if (!error) setFrequentQuestions(data);
   };
 
-  useEffect(fetchFrequentQuestions, []);
+  // 🆕 Función para obtener categorías del usuario
+  const fetchCategories = async () => {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        console.error('Usuario no autenticado');
+        return;
+      }
+
+      const { data, error } = await supabase.rpc('get_dashboard_categories_with_count', {
+        user_uuid: user.id
+      });
+
+      if (error) {
+        console.error('Error al obtener categorías:', error);
+        return;
+      }
+
+      setCategories(data || []);
+    } catch (err) {
+      console.error('Error en fetchCategories:', err);
+    }
+  };
+
+  // 🆕 Función para crear nueva categoría
+  const createCategory = async () => {
+    try {
+      if (!newCategory.name.trim()) {
+        alert('Por favor ingresa un nombre para la categoría');
+        return;
+      }
+
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        throw new Error('Usuario no autenticado');
+      }
+
+      const { data, error } = await supabase.rpc('create_dashboard_category', {
+        user_uuid: user.id,
+        category_name: newCategory.name,
+        category_icon: newCategory.icon,
+        category_description: newCategory.description,
+        category_color: newCategory.color
+      });
+
+      if (error) {
+        throw new Error('Error al crear categoría: ' + error.message);
+      }
+
+      // Resetear formulario y recargar categorías
+      setNewCategory({
+        name: '',
+        icon: '📊',
+        description: '',
+        color: '#3B82F6'
+      });
+      setShowCreateCategory(false);
+      await fetchCategories();
+      
+    } catch (err) {
+      console.error('Error al crear categoría:', err);
+      alert('Error al crear categoría: ' + err.message);
+    }
+  };
+
+  useEffect(() => {
+    fetchFrequentQuestions();
+    fetchCategories(); // 🆕 Cargar categorías al inicio
+  }, []);
 
   /* --------------------------------------------------
    *  📤  ENVIAR MENSAJE AL AGENTE
@@ -137,6 +220,78 @@ export default function ChatPage() {
 
     // Procesar gráficos existentes (sin cambios)
     return parsedContent;
+  };
+
+  // 🆕 Función mejorada para iniciar el proceso de guardado
+  const initiateChartSave = (chartData) => {
+    setCurrentChartToSave(chartData);
+    setShowCategoryModal(true);
+  };
+
+  // 🆕 Función para guardar el gráfico en la categoría seleccionada
+  const saveChartToCategory = async () => {
+    if (!selectedCategory || !currentChartToSave) {
+      alert('Por favor selecciona una categoría');
+      return;
+    }
+
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        alert('Debes iniciar sesión para guardar gráficos');
+        return;
+      }
+
+      // 1. Guardar el gráfico
+      const chartData = {
+        title: currentChartToSave.title,
+        chart_type: currentChartToSave.chart_type,
+        labels: currentChartToSave.labels,
+        values: currentChartToSave.values,
+        sql: currentChartToSave.sql,
+      };
+
+      // Agregar configuración de ejes si es gráfico mixto
+      if (currentChartToSave.chart_type === 'mixed' && currentChartToSave.axes) {
+        chartData.axes = currentChartToSave.axes;
+      }
+
+      const { data: graficoData, error: graficoError } = await supabase
+        .from('graficos')
+        .insert(chartData)
+        .select('id')
+        .single();
+
+      if (graficoError) {
+        throw new Error('Error guardando gráfico: ' + graficoError.message);
+      }
+
+      // 2. Asociar al dashboard en la categoría seleccionada
+      const { error: dashboardError } = await supabase
+        .from('dashboard')
+        .insert({
+          grafico_id: graficoData.id,
+          user_id: user.id,
+          category_id: selectedCategory.id,
+          name: currentChartToSave.title || 'Gráfico sin nombre'
+        });
+
+      if (dashboardError) {
+        throw new Error('Error guardando en dashboard: ' + dashboardError.message);
+      }
+
+      alert(`✅ Gráfico guardado exitosamente en "${selectedCategory.name}"`);
+      
+      // Resetear estados
+      setShowCategoryModal(false);
+      setCurrentChartToSave(null);
+      setSelectedCategory(null);
+      
+    } catch (err) {
+      console.error('Error al guardar gráfico:', err);
+      alert('Error: ' + err.message);
+    }
   };
 
   const renderMessage = (msg, idx) => {
@@ -233,35 +388,13 @@ export default function ChatPage() {
               {/* Gráfico inline */}
               <ChartInline data={parsedContent} />
               
+              {/* 🆕 Botón mejorado para guardar */}
               <button
-                onClick={async () => {
-                  // 🆕 Guardar también la configuración de ejes para gráficos mixtos
-                  const chartData = {
-                    title: parsedContent.title,
-                    chart_type: parsedContent.chart_type,
-                    labels: parsedContent.labels,
-                    values: parsedContent.values,
-                    sql: parsedContent.sql,
-                  };
-
-                  // Agregar configuración de ejes si es gráfico mixto
-                  if (parsedContent.chart_type === 'mixed' && parsedContent.axes) {
-                    chartData.axes = parsedContent.axes;
-                  }
-
-                  const { data, error } = await supabase.from('graficos').insert(chartData).select('id').single();
-
-                  if (error) {
-                    alert('Error guardando gráfico: ' + error.message);
-                    return;
-                  }
-
-                  alert('Gráfico guardado en Supabase.');
-                  guardarGraficoEnDashboard(data.id);
-               }}
-                className="mt-3 bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs shadow"  
+                onClick={() => initiateChartSave(parsedContent)}
+                className="mt-3 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2"  
               >
-                💾 Guardar gráfico en mis Dashboards
+                <FaFolder />
+                💾 Guardar en Dashboard
               </button>
             </>
           ) : (
@@ -312,52 +445,6 @@ export default function ChatPage() {
       </motion.div>
     );
   };
-  
-  // 🆕 FUNCIÓN MEJORADA PARA GUARDAR GRÁFICOS MIXTOS
-  async function guardarGraficoEnSupabase(grafico) {
-    const chartData = {
-      title: grafico.title,
-      chart_type: grafico.chart_type,
-      labels: grafico.labels,
-      values: grafico.values,
-      sql: grafico.sql
-    };
-
-    // Agregar configuración de ejes si es gráfico mixto
-    if (grafico.chart_type === 'mixed' && grafico.axes) {
-      chartData.axes = grafico.axes;
-    }
-
-    const { data, error } = await supabase.from('graficos').insert(chartData);
-
-    if (error) {
-      alert('Error guardando gráfico: ' + error.message);
-    } else {
-      alert('Gráfico guardado correctamente.');
-    }
-  }
-  
-  const guardarGraficoEnDashboard = async (graficoId) => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      alert('Debes iniciar sesión para guardar en el dashboard.');
-      return;
-    }
-
-    const { error } = await supabase.from('dashboard').insert({
-      grafico_id: graficoId,
-      user_id: user.id,
-    });
-
-    if (error) {
-      alert('Error guardando en dashboard: ' + error.message);
-    } else {
-      alert('Gráfico añadido al dashboard correctamente.');
-    }
-  };
 
   /* --------------------------------------------------
    *  🌳  UI PRINCIPAL
@@ -373,7 +460,7 @@ export default function ChatPage() {
           </span>
         </div>
         <div className="flex gap-4 text-sm font-medium">
-          <a href="/chat" className="text-[#5E564D] dark:text-white hover:underline">
+          <a href="/chat" className="text-[#D2C900] dark:text-[#D2C900] hover:underline font-bold">
             🌲 Chat Tronix
           </a>
           <a href="/dashboards" className="text-[#5E564D] dark:text-white hover:underline">
@@ -461,6 +548,165 @@ export default function ChatPage() {
           📨 Enviar
         </button>
       </div>
+
+      {/* 🆕 MODAL SELECTOR DE CATEGORÍAS */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full border border-gray-200 dark:border-gray-700">
+            {/* Header del modal */}
+            <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                <FaFolder />
+                Seleccionar Dashboard
+              </h2>
+              <button 
+                onClick={() => {
+                  setShowCategoryModal(false);
+                  setCurrentChartToSave(null);
+                  setSelectedCategory(null);
+                }}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-xl"
+              >
+                <FaTimes />
+              </button>
+            </div>
+
+            {/* Lista de categorías */}
+            <div className="p-6">
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                ¿En qué dashboard quieres guardar este gráfico?
+              </p>
+              
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {categories.map((category) => (
+                  <div
+                    key={category.id}
+                    onClick={() => setSelectedCategory(category)}
+                    className={`p-3 border rounded-lg cursor-pointer transition-all duration-200 ${
+                      selectedCategory?.id === category.id
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900'
+                        : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="text-2xl">{category.icon}</div>
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-800 dark:text-white">
+                          {category.name}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {category.chart_count} gráfico{category.chart_count !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Botón para crear nueva categoría */}
+              <button
+                onClick={() => setShowCreateCategory(true)}
+                className="w-full mt-4 p-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-300 hover:border-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors flex items-center justify-center gap-2"
+              >
+                <FaPlus />
+                Crear nueva categoría
+              </button>
+            </div>
+
+            {/* Footer del modal */}
+            <div className="flex gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
+              <button 
+                onClick={() => {
+                  setShowCategoryModal(false);
+                  setCurrentChartToSave(null);
+                  setSelectedCategory(null);
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={saveChartToCategory}
+                disabled={!selectedCategory}
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+              >
+                Guardar Gráfico
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🆕 MODAL PARA CREAR CATEGORÍA RÁPIDA */}
+      {showCreateCategory && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full border border-gray-200 dark:border-gray-700">
+            <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-bold text-gray-800 dark:text-white">
+                ➕ Nueva Categoría
+              </h3>
+              <button 
+                onClick={() => setShowCreateCategory(false)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <FaTimes />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Nombre *
+                </label>
+                <input
+                  type="text"
+                  value={newCategory.name}
+                  onChange={(e) => setNewCategory({...newCategory, name: e.target.value})}
+                  placeholder="Ej: Producción, Ventas..."
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Icono
+                </label>
+                <div className="flex gap-1 flex-wrap">
+                  {['📊', '🏭', '💰', '📈', '👥', '🎯'].map(emoji => (
+                    <button
+                      key={emoji}
+                      onClick={() => setNewCategory({...newCategory, icon: emoji})}
+                      className={`p-2 text-lg rounded border transition-all ${
+                        newCategory.icon === emoji 
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900' 
+                          : 'border-gray-300 dark:border-gray-600'
+                      }`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
+              <button 
+                onClick={() => setShowCreateCategory(false)}
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={createCategory}
+                disabled={!newCategory.name.trim()}
+                className="flex-1 px-3 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+              >
+                Crear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
