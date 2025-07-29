@@ -117,6 +117,28 @@ export default function ChatPage() {
       : null;
   };
 
+  // 🆕 FUNCIÓN PARA DETECTAR Y PROCESAR GRÁFICOS MIXTOS
+  const processChartPayload = (parsedContent) => {
+    // Verificar si es un gráfico mixto
+    if (parsedContent.chart_type === 'mixed' && parsedContent.values) {
+      // Validar estructura de gráfico mixto
+      const isValidMixed = Array.isArray(parsedContent.values) && 
+        parsedContent.values.every(serie => 
+          serie.hasOwnProperty('type') && 
+          serie.hasOwnProperty('data') && 
+          (serie.hasOwnProperty('name') || serie.hasOwnProperty('label'))
+        );
+
+      if (isValidMixed) {
+        console.log('🎯 Gráfico mixto detectado:', parsedContent);
+        return parsedContent;
+      }
+    }
+
+    // Procesar gráficos existentes (sin cambios)
+    return parsedContent;
+  };
+
   const renderMessage = (msg, idx) => {
     // 1️⃣ Normalizamos el contenido → parsedContent
     let parsedContent = msg.content;
@@ -138,6 +160,9 @@ export default function ChatPage() {
     ) {
       parsedContent = parsedContent.response_0.chart_payload;
     }
+
+    // 🆕 1.c) Procesar gráficos mixtos
+    parsedContent = processChartPayload(parsedContent);
 
     /* --------------------------------------------------
      *  🎨  DECIDIR QUÉ COMPONENTE USAR
@@ -197,17 +222,34 @@ export default function ChatPage() {
               {parsedContent.respuesta && (
                 <div className="text-sm mt-2">{parsedContent.respuesta}</div>
               )}
+              
+              {/* 🆕 Mostrar tipo de gráfico si es mixto */}
+              {parsedContent.chart_type === 'mixed' && (
+                <div className="text-xs mb-2 px-2 py-1 bg-purple-100 text-purple-800 rounded-full inline-block">
+                  📊 Gráfico Mixto (Líneas + Barras)
+                </div>
+              )}
+              
               {/* Gráfico inline */}
               <ChartInline data={parsedContent} />
+              
               <button
                 onClick={async () => {
-                  const { data, error } = await supabase.from('graficos').insert({
+                  // 🆕 Guardar también la configuración de ejes para gráficos mixtos
+                  const chartData = {
                     title: parsedContent.title,
                     chart_type: parsedContent.chart_type,
                     labels: parsedContent.labels,
                     values: parsedContent.values,
                     sql: parsedContent.sql,
-                  }).select('id').single();
+                  };
+
+                  // Agregar configuración de ejes si es gráfico mixto
+                  if (parsedContent.chart_type === 'mixed' && parsedContent.axes) {
+                    chartData.axes = parsedContent.axes;
+                  }
+
+                  const { data, error } = await supabase.from('graficos').insert(chartData).select('id').single();
 
                   if (error) {
                     alert('Error guardando gráfico: ' + error.message);
@@ -215,7 +257,6 @@ export default function ChatPage() {
                   }
 
                   alert('Gráfico guardado en Supabase.');
-
                   guardarGraficoEnDashboard(data.id);
                }}
                 className="mt-3 bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs shadow"  
@@ -271,42 +312,52 @@ export default function ChatPage() {
       </motion.div>
     );
   };
+  
+  // 🆕 FUNCIÓN MEJORADA PARA GUARDAR GRÁFICOS MIXTOS
   async function guardarGraficoEnSupabase(grafico) {
-  const { data, error } = await supabase.from('graficos').insert({
-    title: grafico.title,
-    chart_type: grafico.chart_type,
-    labels: grafico.labels,
-    values: grafico.values,
-    sql: grafico.sql
-  });
+    const chartData = {
+      title: grafico.title,
+      chart_type: grafico.chart_type,
+      labels: grafico.labels,
+      values: grafico.values,
+      sql: grafico.sql
+    };
 
-  if (error) {
-    alert('Error guardando gráfico: ' + error.message);
-  } else {
-    alert('Gráfico guardado correctamente.');
+    // Agregar configuración de ejes si es gráfico mixto
+    if (grafico.chart_type === 'mixed' && grafico.axes) {
+      chartData.axes = grafico.axes;
+    }
+
+    const { data, error } = await supabase.from('graficos').insert(chartData);
+
+    if (error) {
+      alert('Error guardando gráfico: ' + error.message);
+    } else {
+      alert('Gráfico guardado correctamente.');
+    }
   }
-}
+  
   const guardarGraficoEnDashboard = async (graficoId) => {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    alert('Debes iniciar sesión para guardar en el dashboard.');
-    return;
-  }
+    if (!user) {
+      alert('Debes iniciar sesión para guardar en el dashboard.');
+      return;
+    }
 
-  const { error } = await supabase.from('dashboard').insert({
-    grafico_id: graficoId,
-    user_id: user.id,
-  });
+    const { error } = await supabase.from('dashboard').insert({
+      grafico_id: graficoId,
+      user_id: user.id,
+    });
 
-  if (error) {
-    alert('Error guardando en dashboard: ' + error.message);
-  } else {
-    alert('Gráfico añadido al dashboard correctamente.');
-  }
-};
+    if (error) {
+      alert('Error guardando en dashboard: ' + error.message);
+    } else {
+      alert('Gráfico añadido al dashboard correctamente.');
+    }
+  };
 
   /* --------------------------------------------------
    *  🌳  UI PRINCIPAL
