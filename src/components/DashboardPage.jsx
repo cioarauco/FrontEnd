@@ -484,12 +484,16 @@ const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
       case 'mixed':
         // Para gráficos mixtos, preservar configuración original
         processedData = processChartDataPreservingMixed(data, originalChartType, originalAxes);
+        if (processedData && processedData.values && Array.isArray(processedData.values)) {
+          processedData.values = fixMixedChartTypes(processedData.values, data);
+        }
         break;
         
       case 'bar':
         // Para gráficos de barras, usar solo la columna principal
         processedData = processForBarChart(data);
         break;
+      
         
       case 'line':
         // Para gráficos de línea simple
@@ -510,6 +514,7 @@ const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
         // Fallback al procesamiento dinámico
         processedData = processChartDataDynamic(data);
     }
+    
 
     console.log('🎯 Datos procesados:', processedData);
 
@@ -650,6 +655,70 @@ const processForPieChart = (data) => {
     labels: data.map(row => row[labelKey]),
     values: data.map(row => Number(row[valueKey]) || 0)
   };
+};
+const fixMixedChartTypes = (processedValues, originalData) => {
+  console.log('🔧 [fixMixedChartTypes] Aplicando fix a valores procesados:', processedValues);
+  
+  if (!processedValues || !Array.isArray(processedValues)) {
+    return processedValues;
+  }
+
+  // Buscar la columna de tipo en los datos originales
+  const firstRow = originalData[0];
+  const keys = Object.keys(firstRow);
+  const typeKey = keys.find(key => 
+    key.toLowerCase().includes('type') || 
+    key.toLowerCase().includes('tipo')
+  );
+
+  if (!typeKey) {
+    console.log('🔧 [fixMixedChartTypes] No se encontró columna de tipo, devolviendo sin cambios');
+    return processedValues;
+  }
+
+  // Crear mapa de serie → tipo
+  const serieTypeMap = new Map();
+  originalData.forEach(row => {
+    const nameKey = keys.find(k => 
+      k !== typeKey && 
+      typeof row[k] === 'string' && 
+      !k.toLowerCase().includes('fecha') &&
+      !k.toLowerCase().includes('date')
+    );
+    
+    if (nameKey && row[nameKey]) {
+      const serieName = row[nameKey];
+      const serieType = row[typeKey];
+      if (!serieTypeMap.has(serieName)) {
+        serieTypeMap.set(serieName, serieType);
+        console.log(`🔧 [fixMixedChartTypes] Mapeando "${serieName}" → "${serieType}"`);
+      }
+    }
+  });
+
+  // Aplicar tipos correctos a las series procesadas
+  const fixedValues = processedValues.map(serie => {
+    const originalType = serieTypeMap.get(serie.name) || serieTypeMap.get(serie.label);
+    
+    if (originalType) {
+      console.log(`🔧 [fixMixedChartTypes] Aplicando tipo "${originalType}" a serie "${serie.name || serie.label}"`);
+      
+      return {
+        ...serie,
+        type: originalType, // 🎯 PRESERVAR TIPO ORIGINAL
+        yAxisID: originalType === 'bar' ? 'y1' : 'y' // 🎯 ASIGNAR EJE CORRECTO
+      };
+    }
+
+    return {
+      ...serie,
+      type: 'line',
+      yAxisID: 'y'
+    };
+  });
+
+  console.log('✅ [fixMixedChartTypes] Series con tipos corregidos:', fixedValues);
+  return fixedValues;
 };
 // Función híbrida que mantiene compatibilidad total
 const processChartData = (data) => {
