@@ -456,153 +456,84 @@ const DashboardPage = () => {
     };
   };
 
-// 🔧 FUNCIÓN CON DEBUG ESPECÍFICO PARA SQL
+// Estrategia conservadora: preservar el tipo original del gráfico
 const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
   try {
     setRefreshingChart(chartId);
-    console.log(`🔄 Actualizando gráfico ${chartId} con SQL:`, sql);
+    console.log(`🔄 Actualizando gráfico ${chartId}`);
     console.log(`🎯 Tipo original: ${originalChartType}`);
     
-    // Ejecutar SQL con debug detallado
-    console.log('🚀 Ejecutando SQL en Supabase...');
-    const sqlResult = await supabase.rpc('execute_sql', { query: sql });
+    const { data, error } = await supabase.rpc('execute_sql', { query: sql });
     
-    console.log('📦 Respuesta completa de Supabase:', sqlResult);
-    console.log('📦 sqlResult.data:', sqlResult.data);
-    console.log('📦 sqlResult.error:', sqlResult.error);
-    console.log('📦 Tipo de sqlResult:', typeof sqlResult);
-    console.log('📦 Tipo de sqlResult.data:', typeof sqlResult.data);
-    console.log('📦 Es array sqlResult.data:', Array.isArray(sqlResult.data));
-    
-    if (sqlResult.error) {
-      console.error('❌ Error en execute_sql:', sqlResult.error);
-      throw new Error('Error al ejecutar SQL: ' + sqlResult.error.message);
+    if (error) {
+      throw new Error('Error al ejecutar SQL: ' + error.message);
     }
 
-    let data = sqlResult.data;  // ✅ Cambiar const por let
-    
-    // Debug más detallado de los datos
-    console.log('🔍 ANÁLISIS DETALLADO DE DATOS:');
-    console.log('- data:', data);
-    console.log('- typeof data:', typeof data);
-    console.log('- Array.isArray(data):', Array.isArray(data));
-    console.log('- data === null:', data === null);
-    console.log('- data === undefined:', data === undefined);
-    console.log('- JSON.stringify(data):', JSON.stringify(data));
-    
-    if (data && typeof data === 'object') {
-      console.log('- Object.keys(data):', Object.keys(data));
-      console.log('- data.length:', data.length);
-    }
-
-    if (!data) {
-      console.error('❌ Data es null o undefined');
-      alert('El SQL no devolvió datos. Verifica tu consulta.');
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      alert('La consulta SQL no devolvió datos válidos.');
       return;
     }
 
-    // Verificar si data es un array
-    if (!Array.isArray(data)) {
-      console.error('❌ Data no es un array:', data);
-      
-      // Intentar diferentes estrategias de recuperación
-      if (typeof data === 'object' && data !== null) {
-        console.log('🔧 Intentando estrategias de recuperación...');
-        
-        // Estrategia 1: ¿Es un objeto con una propiedad que contiene el array?
-        const objectKeys = Object.keys(data);
-        console.log('🔧 Keys del objeto:', objectKeys);
-        
-        for (const key of objectKeys) {
-          if (Array.isArray(data[key])) {
-            console.log(`🔧 Encontrado array en data.${key}:`, data[key]);
-            data = data[key];  // ✅ Ahora funciona porque data es let
-            break;
-          }
-        }
-        
-        // Estrategia 2: ¿Es un objeto que representa una fila?
-        if (!Array.isArray(data) && typeof data === 'object') {
-          console.log('🔧 Convirtiendo objeto único a array');
-          data = [data];  // ✅ Ahora funciona porque data es let
-        }
-      }
-      
-      // Si aún no es array, fallar
-      if (!Array.isArray(data)) {
-        console.error('❌ No se pudo convertir data a array:', data);
-        alert('El SQL devolvió un formato de datos inválido. Formato recibido: ' + typeof data);
-        return;
-      }
-    }
+    console.log('📊 Datos del SQL:', data);
+    console.log('🎯 Procesando con tipo original:', originalChartType);
 
-    if (data.length === 0) {
-      console.error('❌ Data está vacío');
-      alert('La consulta SQL no devolvió datos. Verifica tu consulta.');
-      return;
-    }
-
-    // Mostrar estructura del primer registro
-    console.log('🔍 Primer registro:', data[0]);
-    console.log('🔍 Keys del primer registro:', Object.keys(data[0] || {}));
-    console.log('🔍 Todos los registros:', data);
-
-    // Procesar datos
+    // PROCESAMIENTO BASADO EN EL TIPO ORIGINAL DEL GRÁFICO
     let processedData;
     
-    try {
-      if (originalChartType === 'mixed' && originalAxes) {
-        console.log('🎯 Procesando gráfico mixto preservando configuración original');
+    switch (originalChartType) {
+      case 'mixed':
+        // Para gráficos mixtos, preservar configuración original
         processedData = processChartDataPreservingMixed(data, originalChartType, originalAxes);
-      } else {
-        console.log('📊 Procesando gráfico estándar');
-        processedData = processChartData(data);
-      }
-
-      console.log('🎯 Datos procesados exitosamente:', processedData);
-
-    } catch (processError) {
-      console.error('❌ Error en procesamiento de datos:', processError);
-      console.error('❌ Stack trace:', processError.stack);
-      throw new Error('Error al procesar datos: ' + processError.message);
+        break;
+        
+      case 'bar':
+        // Para gráficos de barras, usar solo la columna principal
+        processedData = processForBarChart(data);
+        break;
+        
+      case 'line':
+        // Para gráficos de línea simple
+        processedData = processForLineChart(data);
+        break;
+        
+      case 'multi-line':
+        // Para gráficos multi-línea, detectar formato
+        processedData = processForMultiLineChart(data);
+        break;
+        
+      case 'pie':
+        // Para gráficos de pie
+        processedData = processForPieChart(data);
+        break;
+        
+      default:
+        // Fallback al procesamiento dinámico
+        processedData = processChartDataDynamic(data);
     }
 
-    // Validar datos procesados
-    if (!processedData || !processedData.values || !processedData.labels) {
-      console.error('❌ processedData inválido:', processedData);
-      throw new Error('Error: Los datos procesados no tienen la estructura correcta');
-    }
+    console.log('🎯 Datos procesados:', processedData);
 
-    // Preparar datos para actualización
+    // Actualizar en base de datos
     const updateData = {
       values: processedData.values,
       labels: processedData.labels,
       updated_at: new Date().toISOString()
     };
 
-    console.log('💾 Datos para actualizar en BD:', updateData);
-
-    // Preservar ejes si es necesario
     if (originalChartType === 'mixed' && originalAxes) {
       updateData.axes = originalAxes;
-      console.log('🎯 Preservando ejes originales:', originalAxes);
     } else if (processedData.axes) {
       updateData.axes = processedData.axes;
-      console.log('🎯 Usando nuevos ejes:', processedData.axes);
     }
 
-    // Actualizar en base de datos
     const { error: updateError } = await supabase
       .from('graficos')
       .update(updateData)
       .eq('id', chartId);
 
     if (updateError) {
-      console.error('❌ Error al actualizar en BD:', updateError);
       throw new Error('Error al actualizar gráfico: ' + updateError.message);
     }
-
-    console.log('✅ Gráfico actualizado en BD');
 
     setChartRenderKeys(prev => ({
       ...prev,
@@ -615,36 +546,111 @@ const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
     }, 500);
     
   } catch (err) {
-    console.error('❌ Error completo al actualizar gráfico:', err);
-    console.error('❌ Stack trace:', err.stack);
+    console.error('❌ Error al actualizar gráfico:', err);
     alert('Error al actualizar gráfico: ' + err.message);
   } finally {
     setRefreshingChart(null);
   }
 };
-  // Función para eliminar dashboard
-  const deleteDashboard = async (dashboardId) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar este gráfico del dashboard?')) {
-      return;
-    }
 
-    try {
-      const { error } = await supabase
-        .from('dashboard')
-        .delete()
-        .eq('id', dashboardId);
-
-      if (error) {
-        throw new Error('Error al eliminar dashboard: ' + error.message);
-      }
-
-      await fetchDashboardsByCategory(currentCategory.id);
-    } catch (err) {
-      console.error('Error al eliminar dashboard:', err);
-      alert('Error al eliminar dashboard: ' + err.message);
-    }
+// Procesadores específicos por tipo de gráfico
+const processForBarChart = (data) => {
+  const keys = Object.keys(data[0]);
+  const numericColumns = keys.filter(k => !isNaN(Number(data[0][k])));
+  const textColumns = keys.filter(k => isNaN(Number(data[0][k])));
+  
+  const labelKey = textColumns[0] || keys[0];
+  const valueKey = numericColumns.find(k => 
+    k.toLowerCase().includes('volumen') || 
+    k.toLowerCase().includes('total') || 
+    k.toLowerCase().includes('transferido')
+  ) || numericColumns[0];
+  
+  return {
+    labels: data.map(row => row[labelKey]),
+    values: data.map(row => Number(row[valueKey]) || 0)
   };
+};
 
+const processForLineChart = (data) => {
+  const keys = Object.keys(data[0]);
+  const labelKey = keys[0];
+  const valueKey = keys[1];
+  
+  return {
+    labels: data.map(row => row[labelKey]),
+    values: data.map(row => Number(row[valueKey]) || 0)
+  };
+};
+
+const processForMultiLineChart = (data) => {
+  const keys = Object.keys(data[0]);
+  const numericColumns = keys.filter(k => !isNaN(Number(data[0][k])));
+  
+  // Detectar formato: ancho vs largo
+  if (numericColumns.length >= 2) {
+    // Formato ancho: fecha | volumen_arauco | volumen_chillan
+    return processWideFormat(data, keys, numericColumns);
+  } else {
+    // Formato largo: fecha | zona | especie | volumen
+    return processLongFormat(data, keys);
+  }
+};
+
+const processWideFormat = (data, keys, numericColumns) => {
+  const labelKey = keys.find(k => 
+    k.toLowerCase().includes('fecha') || k.toLowerCase().includes('date')
+  ) || keys[0];
+  
+  const labels = data.map(row => row[labelKey]);
+  const values = numericColumns.map(col => ({
+    label: col.replace(/volumen_?/i, '').replace(/_/g, ' '),
+    data: data.map(row => Number(row[col]) || 0)
+  }));
+  
+  return { labels, values };
+};
+
+const processLongFormat = (data, keys) => {
+  const labelKey = keys.find(k => 
+    k.toLowerCase().includes('fecha') || k.toLowerCase().includes('date')
+  );
+  const valueKey = keys.find(k => !isNaN(Number(data[0][k])));
+  const dimensionKeys = keys.filter(k => k !== labelKey && k !== valueKey);
+  
+  const labels = [...new Set(data.map(row => row[labelKey]))].sort();
+  const combinations = [...new Set(data.map(row => 
+    dimensionKeys.map(dim => row[dim]).join(' - ')
+  ))];
+  
+  const values = combinations.map(combo => {
+    const comboParts = combo.split(' - ');
+    return {
+      label: combo,
+      data: labels.map(label => {
+        const row = data.find(r => {
+          const labelMatch = r[labelKey] === label;
+          const comboMatch = dimensionKeys.every((dim, i) => r[dim] === comboParts[i]);
+          return labelMatch && comboMatch;
+        });
+        return row ? Number(row[valueKey]) || 0 : 0;
+      })
+    };
+  });
+  
+  return { labels, values };
+};
+
+const processForPieChart = (data) => {
+  const keys = Object.keys(data[0]);
+  const labelKey = keys[0];
+  const valueKey = keys[1];
+  
+  return {
+    labels: data.map(row => row[labelKey]),
+    values: data.map(row => Number(row[valueKey]) || 0)
+  };
+};
 // Función híbrida que mantiene compatibilidad total
 const processChartData = (data) => {
   console.log('🔍 [processChartData] Iniciando procesamiento con data:', data);
