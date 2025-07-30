@@ -605,210 +605,244 @@ const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
     }
   };
 
-// Función corregida para procesar datos de gráficos
+// Función processChartData con validaciones de seguridad mejoradas
 const processChartData = (data) => {
-  if (!data || data.length === 0) {
+  console.log('🔍 [processChartData] Iniciando procesamiento con data:', data);
+  console.log('🔍 [processChartData] Tipo de data:', typeof data);
+  console.log('🔍 [processChartData] Es array:', Array.isArray(data));
+  
+  // Validación inicial más robusta
+  if (!data) {
+    console.error('❌ [processChartData] Data es null o undefined');
+    return { values: [], labels: [] };
+  }
+
+  if (!Array.isArray(data)) {
+    console.error('❌ [processChartData] Data no es un array:', data);
+    return { values: [], labels: [] };
+  }
+
+  if (data.length === 0) {
+    console.error('❌ [processChartData] Data está vacío');
     return { values: [], labels: [] };
   }
 
   const firstRow = data[0];
-  const keys = Object.keys(firstRow);
+  console.log('🔍 [processChartData] Primer registro:', firstRow);
   
-  console.log('🔍 Procesando datos:', { keys, firstRow, totalRows: data.length });
+  // Validación del primer registro
+  if (!firstRow || typeof firstRow !== 'object') {
+    console.error('❌ [processChartData] Primer registro es inválido:', firstRow);
+    return { values: [], labels: [] };
+  }
+
+  let keys;
+  try {
+    keys = Object.keys(firstRow);
+    console.log('🔍 [processChartData] Keys obtenidas:', keys);
+  } catch (error) {
+    console.error('❌ [processChartData] Error al obtener keys:', error);
+    return { values: [], labels: [] };
+  }
+
+  if (!keys || keys.length === 0) {
+    console.error('❌ [processChartData] No hay keys válidas');
+    return { values: [], labels: [] };
+  }
   
-  // Detectar columnas por tipo
-  const textColumns = keys.filter(k => 
-    typeof data[0][k] === "string" && 
-    isNaN(Number(data[0][k])) &&
-    !k.toLowerCase().includes('fecha') &&
-    !k.toLowerCase().includes('date')
-  );
+  console.log('🔍 [processChartData] Analizando estructura de datos...');
   
-  const numericColumns = keys.filter(k => 
-    typeof data[0][k] === "number" || 
-    (!isNaN(Number(data[0][k])) && data[0][k] !== null && data[0][k] !== '')
-  );
+  // Detectar columnas por tipo con validaciones
+  const textColumns = [];
+  const numericColumns = [];
+  const dateColumns = [];
   
-  const dateColumns = keys.filter(k => 
-    k.toLowerCase().includes('fecha') || 
-    k.toLowerCase().includes('date')
-  );
+  keys.forEach(k => {
+    try {
+      const sampleValue = data[0][k];
+      console.log(`🔍 [processChartData] Analizando columna "${k}":`, sampleValue, typeof sampleValue);
+      
+      if (k.toLowerCase().includes('fecha') || k.toLowerCase().includes('date')) {
+        dateColumns.push(k);
+      } else if (typeof sampleValue === "string" && isNaN(Number(sampleValue))) {
+        textColumns.push(k);
+      } else if (typeof sampleValue === "number" || (!isNaN(Number(sampleValue)) && sampleValue !== null && sampleValue !== '')) {
+        numericColumns.push(k);
+      } else {
+        textColumns.push(k); // Default a texto si no se puede clasificar
+      }
+    } catch (error) {
+      console.error(`❌ [processChartData] Error al analizar columna "${k}":`, error);
+      textColumns.push(k); // Default a texto en caso de error
+    }
+  });
   
-  console.log('📊 Análisis de columnas:', { textColumns, numericColumns, dateColumns });
+  console.log('📊 [processChartData] Análisis de columnas:', { textColumns, numericColumns, dateColumns });
 
   // 1. CASO ESPECIAL: Gráficos mixtos con columna "type" o "tipo"
   const hasTypeColumn = keys.some(key => 
-    key.toLowerCase().includes('type') || 
-    key.toLowerCase().includes('tipo')
+    key && (key.toLowerCase().includes('type') || key.toLowerCase().includes('tipo'))
   );
   
   if (hasTypeColumn) {
+    console.log('🎯 [processChartData] Detectado gráfico mixto');
+    
     const typeKey = keys.find(key => 
-      key.toLowerCase().includes('type') || 
-      key.toLowerCase().includes('tipo')
+      key && (key.toLowerCase().includes('type') || key.toLowerCase().includes('tipo'))
     );
     const valueKey = numericColumns.find(k => k !== typeKey);
     const labelKey = dateColumns.length > 0 ? dateColumns[0] : textColumns[0];
     const nameKey = keys.find(k => k !== labelKey && k !== typeKey && k !== valueKey);
 
     if (typeKey && valueKey && labelKey) {
-      const labels = [...new Set(data.map(row => row[labelKey]))].sort();
-      const series = [...new Set(data.map(row => row[nameKey || 'serie']))];
-      
-      const values = series.map(serie => {
-        const serieData = data.filter(row => row[nameKey || 'serie'] === serie);
-        const serieType = serieData[0]?.[typeKey] || 'line';
+      try {
+        const labels = [...new Set(data.map(row => row && row[labelKey] ? row[labelKey] : 'Sin label'))].sort();
+        const series = [...new Set(data.map(row => row && row[nameKey || 'serie'] ? row[nameKey || 'serie'] : 'Sin serie'))];
         
-        return {
-          name: serie,
-          type: serieType,
-          data: labels.map(label => {
-            const row = serieData.find(r => r[labelKey] === label);
-            return row ? Number(row[valueKey]) : 0;
-          }),
-          yAxisID: serieType === 'bar' ? 'y1' : 'y'
-        };
-      });
+        const values = series.map(serie => {
+          const serieData = data.filter(row => row && row[nameKey || 'serie'] === serie);
+          const serieType = serieData[0] && serieData[0][typeKey] ? serieData[0][typeKey] : 'line';
+          
+          return {
+            name: serie,
+            type: serieType,
+            data: labels.map(label => {
+              const row = serieData.find(r => r && r[labelKey] === label);
+              return row && row[valueKey] ? Number(row[valueKey]) : 0;
+            }),
+            yAxisID: serieType === 'bar' ? 'y1' : 'y'
+          };
+        });
 
-      const axes = [
-        { id: 'y', position: 'left', title: 'Líneas', beginAtZero: true },
-        { id: 'y1', position: 'right', title: 'Barras', beginAtZero: true }
-      ];
+        const axes = [
+          { id: 'y', position: 'left', title: 'Líneas', beginAtZero: true },
+          { id: 'y1', position: 'right', title: 'Barras', beginAtZero: true }
+        ];
 
-      return { labels, values, axes, chart_type: 'mixed' };
+        console.log('✅ [processChartData] Gráfico mixto procesado exitosamente');
+        return { labels, values, axes, chart_type: 'mixed' };
+      } catch (error) {
+        console.error('❌ [processChartData] Error procesando gráfico mixto:', error);
+        return { values: [], labels: [] };
+      }
     }
   }
 
   // 2. CASO: Datos simples de 2 columnas (etiqueta + valor)
   if (keys.length === 2) {
-    const labelKey = textColumns[0] || dateColumns[0] || keys[0];
-    const valueKey = numericColumns[0] || keys[1];
+    console.log('📊 [processChartData] Procesando gráfico simple de 2 columnas');
     
-    console.log('📊 Gráfico simple 2 columnas:', { labelKey, valueKey });
-    
-    return {
-      labels: data.map(row => row[labelKey]),
-      values: data.map(row => Number(row[valueKey]) || 0)
-    };
-  }
-
-  // 3. CASO: Datos con múltiples columnas numéricas - PRIORIZAR PRIMERA COLUMNA NUMÉRICA
-  if (numericColumns.length > 1) {
-    // Para gráficos de barras simples, usar solo la primera columna numérica más importante
-    const labelKey = textColumns[0] || dateColumns[0] || keys[0];
-    
-    // Buscar la columna numérica principal (generalmente la primera o la que tiene "volumen", "total", etc.)
-    const primaryValueKey = numericColumns.find(k => 
-      k.toLowerCase().includes('volumen') || 
-      k.toLowerCase().includes('total') || 
-      k.toLowerCase().includes('valor') ||
-      k.toLowerCase().includes('monto')
-    ) || numericColumns[0];
-    
-    console.log('📊 Múltiples columnas numéricas - usando columna principal:', { 
-      labelKey, 
-      primaryValueKey, 
-      availableNumeric: numericColumns 
-    });
-    
-    // VERIFICAR SI ES REALMENTE MULTI-SERIE (datos agrupados por fecha/categoría)
-    const uniqueLabels = [...new Set(data.map(row => row[labelKey]))];
-    const isGroupedData = uniqueLabels.length < data.length; // Hay repetición de labels
-    
-    if (isGroupedData && numericColumns.length === 2) {
-      // Podría ser multi-serie, pero verificar estructura
-      const secondValueKey = numericColumns.find(k => k !== primaryValueKey);
+    try {
+      const labelKey = textColumns[0] || dateColumns[0] || keys[0];
+      const valueKey = numericColumns[0] || keys[1];
       
-      // Buscar columna de serie/grupo
-      const serieKey = textColumns.find(k => k !== labelKey);
+      console.log('📊 [processChartData] Gráfico simple 2 columnas:', { labelKey, valueKey });
       
-      if (serieKey) {
-        const labels = [...new Set(data.map(row => row[labelKey]))].sort();
-        const series = [...new Set(data.map(row => row[serieKey]))];
-        
-        const values = series.map(serie => ({
-          label: serie,
-          data: labels.map(label => {
-            const row = data.find(r => r[labelKey] === label && r[serieKey] === serie);
-            return row ? Number(row[primaryValueKey]) : 0;
-          })
-        }));
-        
-        return { labels, values };
-      }
+      const labels = data.map(row => row && row[labelKey] ? row[labelKey] : 'Sin label');
+      const values = data.map(row => row && row[valueKey] ? Number(row[valueKey]) || 0 : 0);
+      
+      console.log('✅ [processChartData] Gráfico simple procesado exitosamente');
+      return { labels, values };
+    } catch (error) {
+      console.error('❌ [processChartData] Error procesando gráfico simple:', error);
+      return { values: [], labels: [] };
     }
-    
-    // DEFAULT: Gráfico simple con columna principal
-    return {
-      labels: data.map(row => row[labelKey]),
-      values: data.map(row => Number(row[primaryValueKey]) || 0)
-    };
   }
 
-  // 4. CASO: Datos complejos de 3 columnas (fecha/categoría + serie + valor)
-  if (keys.length === 3 && numericColumns.length === 1) {
-    const valueKey = numericColumns[0];
-    const labelKey = dateColumns.length > 0 ? dateColumns[0] : textColumns[0];
-    const serieKey = keys.find(k => k !== valueKey && k !== labelKey);
+  // 3. CASO: Para tu SQL específico - múltiples columnas numéricas como series
+  if (numericColumns.length > 1) {
+    console.log('📊 [processChartData] Detectadas múltiples columnas numéricas - creando multi-línea');
     
-    console.log('📊 Datos de 3 columnas:', { labelKey, serieKey, valueKey });
-    
-    const labels = [...new Set(data.map(row => row[labelKey]))].sort();
-    const series = [...new Set(data.map(row => row[serieKey]))];
-    
-    // Si solo hay una serie, hacer gráfico simple
-    if (series.length === 1) {
+    try {
+      const labelKey = textColumns[0] || dateColumns[0] || keys[0];
+      
+      console.log('📊 [processChartData] Multi-línea con:', { 
+        labelKey, 
+        numericColumns 
+      });
+      
+      // Para tu caso: fecha, volumen_arauco, volumen_chillan
+      const labels = data.map(row => row && row[labelKey] ? row[labelKey] : 'Sin fecha');
+      
+      const multiLineData = numericColumns.map(key => ({
+        label: key,
+        data: data.map(row => row && row[key] ? Number(row[key]) || 0 : 0)
+      }));
+      
+      console.log('✅ [processChartData] Multi-línea procesado exitosamente');
+      console.log('📊 [processChartData] Labels:', labels);
+      console.log('📊 [processChartData] Series:', multiLineData);
+      
       return {
         labels: labels,
-        values: labels.map(label => {
-          const row = data.find(r => r[labelKey] === label);
-          return row ? Number(row[valueKey]) : 0;
-        })
+        values: multiLineData
       };
+    } catch (error) {
+      console.error('❌ [processChartData] Error procesando multi-línea:', error);
+      return { values: [], labels: [] };
     }
+  }
+
+  // 4. CASO: Datos de 3 columnas (fecha/categoría + serie + valor)
+  if (keys.length === 3 && numericColumns.length === 1) {
+    console.log('📊 [processChartData] Procesando datos de 3 columnas');
     
-    // Multi-serie
-    const values = series.map(serie => ({
-      label: serie,
-      data: labels.map(label => {
-        const row = data.find(r => r[labelKey] === label && r[serieKey] === serie);
-        return row ? Number(row[valueKey]) : 0;
-      })
-    }));
+    try {
+      const valueKey = numericColumns[0];
+      const labelKey = dateColumns.length > 0 ? dateColumns[0] : textColumns[0];
+      const serieKey = keys.find(k => k !== valueKey && k !== labelKey);
+      
+      console.log('📊 [processChartData] Datos de 3 columnas:', { labelKey, serieKey, valueKey });
+      
+      const labels = [...new Set(data.map(row => row && row[labelKey] ? row[labelKey] : 'Sin label'))].sort();
+      const series = [...new Set(data.map(row => row && row[serieKey] ? row[serieKey] : 'Sin serie'))];
+      
+      // Si solo hay una serie, hacer gráfico simple
+      if (series.length === 1) {
+        const values = labels.map(label => {
+          const row = data.find(r => r && r[labelKey] === label);
+          return row && row[valueKey] ? Number(row[valueKey]) : 0;
+        });
+        
+        console.log('✅ [processChartData] Serie única procesada como gráfico simple');
+        return { labels, values };
+      }
+      
+      // Multi-serie
+      const values = series.map(serie => ({
+        label: serie,
+        data: labels.map(label => {
+          const row = data.find(r => r && r[labelKey] === label && r[serieKey] === serie);
+          return row && row[valueKey] ? Number(row[valueKey]) : 0;
+        })
+      }));
+      
+      console.log('✅ [processChartData] Multi-serie procesado exitosamente');
+      return { labels, values };
+    } catch (error) {
+      console.error('❌ [processChartData] Error procesando datos de 3 columnas:', error);
+      return { values: [], labels: [] };
+    }
+  }
+
+  // 5. FALLBACK: Usar primera columna numérica
+  console.log('📊 [processChartData] Usando fallback');
+  
+  try {
+    const fallbackValueKey = numericColumns[0] || keys.find(k => k && data[0][k] && !isNaN(Number(data[0][k])));
+    const fallbackLabelKey = keys.find(k => k !== fallbackValueKey) || keys[0];
     
+    console.log('📊 [processChartData] Fallback simple:', { fallbackLabelKey, fallbackValueKey });
+    
+    const labels = data.map(row => row && row[fallbackLabelKey] ? row[fallbackLabelKey] : `Item ${data.indexOf(row) + 1}`);
+    const values = data.map(row => row && row[fallbackValueKey] ? Number(row[fallbackValueKey]) || 0 : 0);
+    
+    console.log('✅ [processChartData] Fallback procesado exitosamente');
     return { labels, values };
+  } catch (error) {
+    console.error('❌ [processChartData] Error en fallback:', error);
+    return { values: [], labels: [] };
   }
-
-  // 5. CASO: Múltiples columnas numéricas como series diferentes
-  if (numericColumns.length > 1 && textColumns.length > 0) {
-    const labelKey = textColumns[0] || dateColumns[0];
-    
-    console.log('📊 Multi-línea con múltiples columnas numéricas:', { 
-      labelKey, 
-      numericColumns 
-    });
-    
-    const multiLineData = numericColumns.map(key => ({
-      label: key,
-      data: data.map(row => Number(row[key]) || 0)
-    }));
-    
-    return {
-      labels: data.map(row => row[labelKey]),
-      values: multiLineData
-    };
-  }
-
-  // 6. FALLBACK: Usar primera columna numérica
-  const fallbackValueKey = numericColumns[0] || keys.find(k => !isNaN(Number(data[0][k])));
-  const fallbackLabelKey = keys.find(k => k !== fallbackValueKey) || keys[0];
-  
-  console.log('📊 Fallback simple:', { fallbackLabelKey, fallbackValueKey });
-  
-  return {
-    labels: data.map(row => row[fallbackLabelKey] || `Item ${data.indexOf(row) + 1}`),
-    values: data.map(row => Number(row[fallbackValueKey]) || 0)
-  };
 };
 
   const safeJsonParse = (jsonString, fallback = null) => {
