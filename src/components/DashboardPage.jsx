@@ -484,9 +484,6 @@ const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
       case 'mixed':
         // Para gráficos mixtos, preservar configuración original
         processedData = processChartDataPreservingMixed(data, originalChartType, originalAxes);
-        if (processedData && processedData.values && Array.isArray(processedData.values)) {
-          processedData.values = fixMixedChartTypes(processedData.values, data);
-         }
         break;
         
       case 'bar':
@@ -654,76 +651,39 @@ const processForPieChart = (data) => {
     values: data.map(row => Number(row[valueKey]) || 0)
   };
 };
-const fixMixedChartTypes = (processedValues, originalData) => {
-  console.log('🔧 [fixMixedChartTypes] Aplicando fix a valores procesados:', processedValues);
-  console.log('🔧 [fixMixedChartTypes] Datos originales:', originalData);
+// Función híbrida que mantiene compatibilidad total
+const processChartData = (data) => {
+  console.log('🔍 [processChartData] Iniciando procesamiento con data:', data);
   
-  if (!processedValues || !Array.isArray(processedValues)) {
-    return processedValues;
+  // Validaciones básicas
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    console.error('❌ [processChartData] Datos inválidos:', data);
+    return { values: [], labels: [] };
   }
 
-  // Buscar la columna de tipo en los datos originales
-  const firstRow = originalData[0];
+  const firstRow = data[0];
+  if (!firstRow || typeof firstRow !== 'object') {
+    console.error('❌ [processChartData] Primer registro inválido:', firstRow);
+    return { values: [], labels: [] };
+  }
+
   const keys = Object.keys(firstRow);
-  const typeKey = keys.find(key => 
-    key.toLowerCase().includes('type') || 
-    key.toLowerCase().includes('tipo')
+  console.log('🔍 [processChartData] Keys:', keys);
+  console.log('🔍 [processChartData] Primer registro:', firstRow);
+
+  // Detectar tipos de columnas
+  const dateColumns = keys.filter(k => 
+    k.toLowerCase().includes('fecha') || 
+    k.toLowerCase().includes('date') ||
+    /^\d{4}-\d{2}-\d{2}/.test(String(firstRow[k]))
   );
-
-  if (!typeKey) {
-    console.log('🔧 [fixMixedChartTypes] No se encontró columna de tipo, devolviendo sin cambios');
-    return processedValues;
-  }
-
-  console.log('🔧 [fixMixedChartTypes] Columna de tipo encontrada:', typeKey);
-
-  // Crear mapa de serie → tipo
-  const serieTypeMap = new Map();
-  originalData.forEach(row => {
-    const nameKey = keys.find(k => 
-      k !== typeKey && 
-      typeof row[k] === 'string' && 
-      !k.toLowerCase().includes('fecha') &&
-      !k.toLowerCase().includes('date')
-    );
-    
-    if (nameKey && row[nameKey]) {
-      const serieName = row[nameKey];
-      const serieType = row[typeKey];
-      if (!serieTypeMap.has(serieName)) {
-        serieTypeMap.set(serieName, serieType);
-        console.log(`🔧 [fixMixedChartTypes] Mapeando "${serieName}" → "${serieType}"`);
-      }
-    }
+  
+  const numericColumns = keys.filter(k => {
+    const value = firstRow[k];
+    return (typeof value === "number" || 
+           (!isNaN(Number(value)) && value !== null && value !== '')) &&
+           !dateColumns.includes(k);
   });
-
-  console.log('🔧 [fixMixedChartTypes] Mapa de tipos:', Array.from(serieTypeMap.entries()));
-
-  // Aplicar tipos correctos a las series procesadas
-  const fixedValues = processedValues.map(serie => {
-    const originalType = serieTypeMap.get(serie.name) || serieTypeMap.get(serie.label);
-    
-    if (originalType) {
-      console.log(`🔧 [fixMixedChartTypes] Aplicando tipo "${originalType}" a serie "${serie.name || serie.label}"`);
-      
-      return {
-        ...serie,
-        type: originalType, // 🎯 PRESERVAR TIPO ORIGINAL
-        yAxisID: originalType === 'bar' ? 'y1' : 'y' // 🎯 ASIGNAR EJE CORRECTO
-      };
-    }
-
-    console.log(`🔧 [fixMixedChartTypes] No se encontró tipo para serie "${serie.name || serie.label}", usando line por defecto`);
-    return {
-      ...serie,
-      type: 'line',
-      yAxisID: 'y'
-    };
-  });
-
-  console.log('✅ [fixMixedChartTypes] Series con tipos corregidos:', fixedValues);
-  return fixedValues;
-};
   
   const textColumns = keys.filter(k => 
     !dateColumns.includes(k) && 
