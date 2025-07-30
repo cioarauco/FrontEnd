@@ -28,8 +28,8 @@ const DashboardPage = () => {
   const [chartRenderKeys, setChartRenderKeys] = useState({});
   const [showCreateCategory, setShowCreateCategory] = useState(false);
 
-  // 🆕 Estados para el layout flexible
-  const [chartSizes, setChartSizes] = useState({}); // {chartId: 'small'|'medium'|'large'}
+  // Estados para el layout flexible
+  const [chartSizes, setChartSizes] = useState({});
   const [editMode, setEditMode] = useState(false);
 
   // Estados para crear categoría
@@ -40,14 +40,24 @@ const DashboardPage = () => {
     color: '#3B82F6'
   });
 
-  // 🎨 Paleta de colores unificada (mantenemos la misma)
+  // Paleta de colores unificada
   const generateColors = (count) => {
     const colors = [
-      'rgba(255, 99, 132, 0.8)', 'rgba(54, 162, 235, 0.8)', 'rgba(255, 205, 86, 0.8)',
-      'rgba(75, 192, 192, 0.8)', 'rgba(153, 102, 255, 0.8)', 'rgba(255, 159, 64, 0.8)',
-      'rgba(199, 199, 199, 0.8)', 'rgba(83, 102, 255, 0.8)', 'rgba(255, 99, 255, 0.8)',
-      'rgba(99, 255, 132, 0.8)', 'rgba(255, 193, 7, 0.8)', 'rgba(156, 39, 176, 0.8)',
-      'rgba(0, 188, 212, 0.8)', 'rgba(76, 175, 80, 0.8)', 'rgba(244, 67, 54, 0.8)',
+      'rgba(255, 99, 132, 0.8)',    // Rosa vibrante
+      'rgba(54, 162, 235, 0.8)',    // Azul cielo
+      'rgba(255, 205, 86, 0.8)',    // Amarillo dorado
+      'rgba(75, 192, 192, 0.8)',    // Verde agua
+      'rgba(153, 102, 255, 0.8)',   // Púrpura
+      'rgba(255, 159, 64, 0.8)',    // Naranja
+      'rgba(199, 199, 199, 0.8)',   // Gris claro
+      'rgba(83, 102, 255, 0.8)',    // Azul índigo
+      'rgba(255, 99, 255, 0.8)',    // Magenta
+      'rgba(99, 255, 132, 0.8)',    // Verde lima
+      'rgba(255, 193, 7, 0.8)',     // Ámbar
+      'rgba(156, 39, 176, 0.8)',    // Púrpura profundo
+      'rgba(0, 188, 212, 0.8)',     // Cian
+      'rgba(76, 175, 80, 0.8)',     // Verde
+      'rgba(244, 67, 54, 0.8)',     // Rojo
     ];
     
     const borderColors = colors.map(color => color.replace('0.8', '1'));
@@ -58,7 +68,7 @@ const DashboardPage = () => {
     };
   };
 
-  // 🎯 Opciones base unificadas (mantenemos las mismas)
+  // Opciones base unificadas para gráficos
   const getUnifiedBaseOptions = (chartType = 'default') => ({
     responsive: true,
     maintainAspectRatio: false,
@@ -154,39 +164,39 @@ const DashboardPage = () => {
     } : {}
   });
 
-  // 🆕 Función para obtener las clases de tamaño según el tipo
+  // Función para obtener las clases de tamaño según el tipo
   const getChartSizeClasses = (chartId, size) => {
     const currentSize = size || chartSizes[chartId] || 'medium';
     
     switch (currentSize) {
       case 'small':
-        return 'col-span-12 md:col-span-6 lg:col-span-4'; // Pequeño: 1/3 del ancho en desktop
+        return 'col-span-12 md:col-span-6 lg:col-span-4';
       case 'medium':
-        return 'col-span-12 md:col-span-6'; // Mediano: 1/2 del ancho en desktop
+        return 'col-span-12 md:col-span-6';
       case 'large':
-        return 'col-span-12'; // Grande: ancho completo
+        return 'col-span-12';
       default:
         return 'col-span-12 md:col-span-6';
     }
   };
 
-  // 🆕 Función para obtener la altura según el tamaño
+  // Función para obtener la altura según el tamaño
   const getChartHeight = (chartId, size) => {
     const currentSize = size || chartSizes[chartId] || 'medium';
     
     switch (currentSize) {
       case 'small':
-        return 'h-64'; // 16rem
+        return 'h-64';
       case 'medium':
-        return 'h-80'; // 20rem
+        return 'h-80';
       case 'large':
-        return 'h-96'; // 24rem
+        return 'h-96';
       default:
         return 'h-80';
     }
   };
 
-  // 🆕 Función para cambiar el tamaño de un gráfico
+  // Función para cambiar el tamaño de un gráfico
   const changeChartSize = (chartId, newSize) => {
     setChartSizes(prev => ({
       ...prev,
@@ -200,7 +210,7 @@ const DashboardPage = () => {
     }));
   };
 
-  // 🆕 Componente de selector de tamaño
+  // Componente de selector de tamaño
   const SizeSelector = ({ chartId, currentSize }) => {
     if (!editMode) return null;
     
@@ -233,7 +243,7 @@ const DashboardPage = () => {
     );
   };
 
-  // Funciones existentes (fetchCategories, fetchDashboardsByCategory, etc.) - mantienen la misma lógica
+  // Función para obtener categorías con contadores
   const fetchCategories = async () => {
     try {
       setLoading(true);
@@ -268,6 +278,7 @@ const DashboardPage = () => {
     }
   };
 
+  // Función para obtener dashboards de una categoría específica
   const fetchDashboardsByCategory = async (categoryId) => {
     try {
       setLoading(true);
@@ -311,6 +322,7 @@ const DashboardPage = () => {
     }
   };
 
+  // Función para crear nueva categoría
   const createCategory = async () => {
     try {
       if (!newCategory.name.trim()) {
@@ -353,10 +365,103 @@ const DashboardPage = () => {
     }
   };
 
-  const refreshChart = async (chartId, sql) => {
+  // 🆕 FUNCIÓN ESPECIALIZADA PARA PROCESAR GRÁFICOS MIXTOS
+  const processChartDataPreservingMixed = (data, originalChartType, originalAxes) => {
+    if (!data || data.length === 0) {
+      return { values: [], labels: [] };
+    }
+
+    console.log('🎯 Procesando datos mixtos con configuración original');
+
+    const firstRow = data[0];
+    const keys = Object.keys(firstRow);
+    
+    // Para gráficos mixtos, intentar detectar el patrón de series
+    const hasMultipleColumns = keys.length >= 4; // fecha, serie, tipo, valor
+    
+    if (hasMultipleColumns) {
+      // Buscar columnas clave
+      const fechaKey = keys.find(k => k.toLowerCase().includes('fecha') || k.toLowerCase().includes('date')) || keys[0];
+      const tipoKey = keys.find(k => k.toLowerCase().includes('tipo') || k.toLowerCase().includes('type'));
+      const serieKey = keys.find(k => k.toLowerCase().includes('serie') || k.toLowerCase().includes('name') || k.toLowerCase().includes('label'));
+      const valorKey = keys.find(k => k.toLowerCase().includes('volumen') || k.toLowerCase().includes('valor') || typeof data[0][k] === 'number');
+
+      if (fechaKey && valorKey) {
+        const labels = [...new Set(data.map(row => row[fechaKey]))].sort();
+        
+        // Si hay columna de tipo, usar para determinar tipo de serie
+        if (tipoKey && serieKey) {
+          const seriesMap = new Map();
+          
+          data.forEach(row => {
+            const serieId = `${row[serieKey]}_${row[tipoKey]}`;
+            if (!seriesMap.has(serieId)) {
+              seriesMap.set(serieId, {
+                name: row[serieKey],
+                type: row[tipoKey] === 'bar' ? 'bar' : 'line',
+                data: new Array(labels.length).fill(0),
+                yAxisID: row[tipoKey] === 'bar' ? 'y1' : 'y'
+              });
+            }
+            
+            const labelIndex = labels.indexOf(row[fechaKey]);
+            if (labelIndex !== -1) {
+              seriesMap.get(serieId).data[labelIndex] = Number(row[valorKey]) || 0;
+            }
+          });
+
+          return {
+            labels,
+            values: Array.from(seriesMap.values()),
+            axes: originalAxes, // Preservar ejes originales
+            chart_type: 'mixed'
+          };
+        }
+        
+        // Si hay múltiples series pero sin tipo explícito
+        if (serieKey) {
+          const series = [...new Set(data.map(row => row[serieKey]))];
+          
+          const values = series.map((serie, index) => {
+            const serieData = data.filter(row => row[serieKey] === serie);
+            
+            return {
+              name: serie,
+              type: index % 2 === 0 ? 'line' : 'bar', // Alternar tipos para preservar carácter mixto
+              data: labels.map(label => {
+                const row = serieData.find(r => r[fechaKey] === label);
+                return row ? Number(row[valorKey]) || 0 : 0;
+              }),
+              yAxisID: index % 2 === 0 ? 'y' : 'y1'
+            };
+          });
+
+          return {
+            labels,
+            values,
+            axes: originalAxes, // Preservar ejes originales
+            chart_type: 'mixed'
+          };
+        }
+      }
+    }
+
+    // Fallback: usar procesamiento estándar pero forzar tipo mixto
+    const standardProcessed = processChartData(data);
+    
+    return {
+      ...standardProcessed,
+      chart_type: 'mixed',
+      axes: originalAxes // Preservar ejes originales
+    };
+  };
+
+  // 🔧 FUNCIÓN CORREGIDA PARA ACTUALIZAR GRÁFICOS MIXTOS
+  const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
     try {
       setRefreshingChart(chartId);
       console.log(`🔄 Actualizando gráfico ${chartId} con SQL:`, sql);
+      console.log(`🎯 Tipo original: ${originalChartType}`);
       
       const { data, error } = await supabase.rpc('execute_sql', { query: sql });
       
@@ -371,16 +476,31 @@ const DashboardPage = () => {
         return;
       }
 
-      const processedData = processChartData(data);
+      // 🆕 PRESERVAR CONFIGURACIÓN ORIGINAL PARA GRÁFICOS MIXTOS
+      let processedData;
+      
+      if (originalChartType === 'mixed' && originalAxes) {
+        console.log('🎯 Procesando gráfico mixto preservando configuración original');
+        processedData = processChartDataPreservingMixed(data, originalChartType, originalAxes);
+      } else {
+        console.log('📊 Procesando gráfico estándar');
+        processedData = processChartData(data);
+      }
+
       console.log('🎯 Datos procesados:', processedData);
 
+      // Preparar datos para actualización
       const updateData = {
         values: processedData.values,
         labels: processedData.labels,
         updated_at: new Date().toISOString()
       };
 
-      if (processedData.axes) {
+      // 🆕 PRESERVAR EJES ORIGINALES PARA GRÁFICOS MIXTOS
+      if (originalChartType === 'mixed' && originalAxes) {
+        updateData.axes = originalAxes; // Mantener configuración original
+        console.log('🎯 Preservando ejes originales:', originalAxes);
+      } else if (processedData.axes) {
         updateData.axes = processedData.axes;
       }
 
@@ -392,6 +512,8 @@ const DashboardPage = () => {
       if (updateError) {
         throw new Error('Error al actualizar gráfico: ' + updateError.message);
       }
+
+      console.log('✅ Gráfico actualizado en BD');
 
       setChartRenderKeys(prev => ({
         ...prev,
@@ -411,6 +533,7 @@ const DashboardPage = () => {
     }
   };
 
+  // Función para eliminar dashboard
   const deleteDashboard = async (dashboardId) => {
     if (!confirm('¿Estás seguro de que quieres eliminar este gráfico del dashboard?')) {
       return;
@@ -433,7 +556,7 @@ const DashboardPage = () => {
     }
   };
 
-  // Funciones de procesamiento de datos (reutilizadas del código original)
+  // Funciones de procesamiento de datos (mantenemos las mismas)
   const processChartData = (data) => {
     if (!data || data.length === 0) {
       return { values: [], labels: [] };
@@ -484,7 +607,7 @@ const DashboardPage = () => {
       }
     }
 
-    // Resto de la lógica de procesamiento (mantenemos la misma)
+    // Resto de lógica de procesamiento estándar
     if (data && data.length > 0 && Object.keys(data[0]).length === 3) {
       const keys = Object.keys(data[0]);
       const valorKey = keys.find(k => typeof data[0][k] === "number" || data.every(row => !isNaN(Number(row[k]))));
@@ -557,6 +680,16 @@ const DashboardPage = () => {
 
   // Función para renderizar gráficos (mantenemos la misma lógica)
   const renderChart = (grafico) => {
+    console.log('🎨 Renderizando gráfico:', {
+      id: grafico.id,
+      title: grafico.title,
+      type: grafico.chart_type,
+      values: grafico.values,
+      labels: grafico.labels,
+      axes: grafico.axes,
+      updated_at: grafico.updated_at
+    });
+
     if (!grafico.values || !grafico.labels) {
       return <div className="text-gray-500">No hay datos para mostrar</div>;
     }
@@ -565,6 +698,8 @@ const DashboardPage = () => {
     let labels = safeJsonParse(grafico.labels, []);
     let axes = safeJsonParse(grafico.axes, null);
 
+    console.log('📋 Datos parseados:', { values, labels, axes, type: grafico.chart_type });
+
     if (!values || !labels || (Array.isArray(values) && values.length === 0)) {
       return <div className="text-gray-500">No hay datos válidos para mostrar</div>;
     }
@@ -572,8 +707,60 @@ const DashboardPage = () => {
     const forceRenderKey = chartRenderKeys[grafico.id] || 0;
     const chartKey = `chart-${grafico.id}-${forceRenderKey}-${grafico.updated_at}`;
     
+    console.log('🔑 Chart key:', chartKey);
+
     let chartData;
 
+    // Función para crear escalas dinámicas para gráficos mixtos
+    const createMixedScales = () => {
+      const scales = {
+        x: {
+          type: 'category',
+          labels: labels,
+          grid: {
+            display: false
+          },
+          ticks: {
+            font: {
+              size: 11
+            }
+          }
+        }
+      };
+
+      if (axes && Array.isArray(axes)) {
+        axes.forEach(axis => {
+          scales[axis.id] = {
+            type: 'linear',
+            display: true,
+            position: axis.position || 'left',
+            title: {
+              display: !!axis.title,
+              text: axis.title,
+              font: {
+                size: 12,
+                weight: '500'
+              }
+            },
+            grid: {
+              drawOnChartArea: axis.position !== 'right',
+              color: 'rgba(0, 0, 0, 0.1)',
+              drawBorder: false
+            },
+            beginAtZero: axis.beginAtZero !== false,
+            ticks: {
+              font: {
+                size: 11
+              }
+            }
+          };
+        });
+      }
+
+      return scales;
+    };
+
+    // Renderizado según tipo de gráfico con estilos unificados
     switch (grafico.chart_type) {
       case 'bar':
         const barColors = generateColors(Array.isArray(values) ? values.length : 1);
@@ -593,7 +780,12 @@ const DashboardPage = () => {
         };
         return (
           <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
-            <Bar key={chartKey} data={chartData} options={getUnifiedBaseOptions('bar')} redraw={true} />
+            <Bar 
+              key={chartKey}
+              data={chartData} 
+              options={getUnifiedBaseOptions('bar')}
+              redraw={true}
+            />
           </div>
         );
 
@@ -612,7 +804,12 @@ const DashboardPage = () => {
         };
         return (
           <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
-            <Pie key={chartKey} data={chartData} options={getUnifiedBaseOptions('pie')} redraw={true} />
+            <Pie 
+              key={chartKey}
+              data={chartData} 
+              options={getUnifiedBaseOptions('pie')}
+              redraw={true}
+            />
           </div>
         );
 
@@ -638,78 +835,313 @@ const DashboardPage = () => {
         };
         return (
           <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
-            <Line key={chartKey} data={chartData} options={getUnifiedBaseOptions('line')} redraw={true} />
+            <Line 
+              key={chartKey}
+              data={chartData} 
+              options={getUnifiedBaseOptions('line')}
+              redraw={true}
+            />
+          </div>
+        );
+
+      // CASO PARA GRÁFICOS MIXTOS
+      case 'mixed':
+        let mixedDatasets = [];
+        
+        console.log('🎯 Procesando gráfico mixto con values:', values);
+        
+        if (Array.isArray(values) && values.length > 0) {
+          const colors = generateColors(values.length);
+          
+          mixedDatasets = values.map((serie, index) => {
+            const baseDataset = {
+              label: serie.name || serie.label || `Serie ${index + 1}`,
+              data: Array.isArray(serie.data) ? serie.data : [],
+              borderColor: colors.borders[index],
+              pointBackgroundColor: colors.borders[index],
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+              pointHoverRadius: 8,
+              pointHoverBorderWidth: 3
+            };
+
+            if (serie.type === 'bar') {
+              return {
+                ...baseDataset,
+                type: 'bar',
+                backgroundColor: colors.backgrounds[index],
+                borderWidth: 2,
+                borderSkipped: false,
+                borderRadius: 4,
+                hoverBackgroundColor: colors.borders[index],
+                hoverBorderWidth: 3,
+                yAxisID: serie.yAxisID || 'y1',
+                order: 2
+              };
+            } else {
+              return {
+                ...baseDataset,
+                type: 'line',
+                backgroundColor: 'transparent',
+                fill: false,
+                tension: 0.4,
+                borderWidth: 3,
+                yAxisID: serie.yAxisID || 'y',
+                order: 1
+              };
+            }
+          });
+        }
+
+        console.log('🎨 Mixed datasets generados:', mixedDatasets);
+
+        if (mixedDatasets.length === 0) {
+          return (
+            <div className="text-red-500">
+              <div>No se pudieron procesar los datos del gráfico mixto</div>
+              <div className="text-xs mt-2 bg-gray-100 p-2 rounded overflow-auto max-h-32">
+                <div>Datos recibidos:</div>
+                <pre className="text-xs">{JSON.stringify(values, null, 2)}</pre>
+              </div>
+            </div>
+          );
+        }
+
+        chartData = {
+          labels: labels,
+          datasets: mixedDatasets
+        };
+        
+        return (
+          <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
+            <Line 
+              key={chartKey}
+              data={chartData} 
+              options={{
+                ...getUnifiedBaseOptions('mixed'),
+                scales: createMixedScales()
+              }}
+              redraw={true}
+            />
           </div>
         );
 
       case 'multi-line':
-      case 'mixed':
-        if (!Array.isArray(values)) return <div className="text-red-500">Datos inválidos</div>;
+        let datasets = [];
         
-        const colors = generateColors(values.length);
-        const datasets = values.map((serie, index) => {
-          const baseDataset = {
-            label: serie.name || serie.label || `Serie ${index + 1}`,
-            data: Array.isArray(serie.data) ? serie.data : [],
-            borderColor: colors.borders[index],
-            pointBackgroundColor: colors.borders[index],
-            pointBorderColor: '#ffffff',
-            pointBorderWidth: 2,
-            pointRadius: 4,
-            pointHoverRadius: 8,
-            pointHoverBorderWidth: 3
-          };
-
-          if (serie.type === 'bar') {
-            return {
-              ...baseDataset,
-              type: 'bar',
+        console.log('Procesando multi-line con values:', values);
+        
+        if (Array.isArray(values) && values.length > 0) {
+          if (typeof values[0] === 'object' && values[0] !== null && 'name' in values[0] && 'data' in values[0]) {
+            const colors = generateColors(values.length);
+            datasets = values.map((series, index) => ({
+              label: series.name,
+              data: Array.isArray(series.data) ? series.data : [],
+              borderColor: colors.borders[index],
               backgroundColor: colors.backgrounds[index],
-              borderWidth: 2,
-              borderRadius: 4,
-              yAxisID: serie.yAxisID || 'y1',
-              order: 2
-            };
-          } else {
-            return {
-              ...baseDataset,
-              type: 'line',
-              backgroundColor: 'transparent',
               fill: false,
               tension: 0.4,
               borderWidth: 3,
-              yAxisID: serie.yAxisID || 'y',
-              order: 1
-            };
+              pointBackgroundColor: colors.borders[index],
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+              pointHoverRadius: 8,
+              pointHoverBorderWidth: 3
+            }));
           }
-        });
+          else if (typeof values[0] === 'object' && values[0] !== null && 'label' in values[0] && 'data' in values[0]) {
+            const colors = generateColors(values.length);
+            datasets = values.map((series, index) => ({
+              label: series.label,
+              data: Array.isArray(series.data) ? series.data : [],
+              borderColor: colors.borders[index],
+              backgroundColor: colors.backgrounds[index],
+              fill: false,
+              tension: 0.4,
+              borderWidth: 3,
+              pointBackgroundColor: colors.borders[index],
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+              pointHoverRadius: 8,
+              pointHoverBorderWidth: 3
+            }));
+          } 
+          else if (Array.isArray(values[0])) {
+            const colors = generateColors(values.length);
+            datasets = values.map((series, index) => ({
+              label: `Serie ${index + 1}`,
+              data: series,
+              borderColor: colors.borders[index],
+              backgroundColor: colors.backgrounds[index],
+              fill: false,
+              tension: 0.4,
+              borderWidth: 3,
+              pointBackgroundColor: colors.borders[index],
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+              pointHoverRadius: 8,
+              pointHoverBorderWidth: 3
+            }));
+          }
+          else if (typeof values[0] === 'number' || typeof values[0] === 'string') {
+            const colors = generateColors(1);
+            datasets = [{
+              label: 'Datos',
+              data: values,
+              borderColor: colors.borders[0],
+              backgroundColor: colors.backgrounds[0],
+              fill: false,
+              tension: 0.4,
+              borderWidth: 3,
+              pointBackgroundColor: colors.borders[0],
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+              pointHoverRadius: 8,
+              pointHoverBorderWidth: 3
+            }];
+          }
+        }
+        else if (values && typeof values === 'object' && !Array.isArray(values)) {
+          const keys = Object.keys(values);
+          console.log('Values es objeto con keys:', keys);
+          
+          if (keys.length > 0) {
+            const colors = generateColors(keys.length);
+            datasets = keys.map((key, index) => {
+              const seriesData = values[key];
+              return {
+                label: key,
+                data: Array.isArray(seriesData) ? seriesData : [seriesData],
+                borderColor: colors.borders[index],
+                backgroundColor: colors.backgrounds[index],
+                fill: false,
+                tension: 0.4,
+                borderWidth: 3,
+                pointBackgroundColor: colors.borders[index],
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 8,
+                pointHoverBorderWidth: 3
+              };
+            });
+          }
+        }
+        else if (typeof values === 'string') {
+          try {
+            const reparsedValues = JSON.parse(values);
+            console.log('Re-parsed values:', reparsedValues);
+            
+            if (Array.isArray(reparsedValues) && reparsedValues.length > 0) {
+              if (typeof reparsedValues[0] === 'object' && reparsedValues[0] !== null && 'name' in reparsedValues[0] && 'data' in reparsedValues[0]) {
+                const colors = generateColors(reparsedValues.length);
+                datasets = reparsedValues.map((series, index) => ({
+                  label: series.name,
+                  data: Array.isArray(series.data) ? series.data : [],
+                  borderColor: colors.borders[index],
+                  backgroundColor: colors.backgrounds[index],
+                  fill: false,
+                  tension: 0.4,
+                  borderWidth: 3,
+                  pointBackgroundColor: colors.borders[index],
+                  pointBorderColor: '#ffffff',
+                  pointBorderWidth: 2,
+                  pointRadius: 4,
+                  pointHoverRadius: 8,
+                  pointHoverBorderWidth: 3
+                }));
+              }
+            }
+          } catch (e) {
+            console.error('Error re-parsing values:', e);
+          }
+        }
 
-        chartData = { labels, datasets };
+        console.log('Datasets generados:', datasets);
+
+        if (datasets.length === 0) {
+          return (
+            <div className="text-red-500">
+              <div>No se pudieron procesar los datos del gráfico multi-línea</div>
+              <div className="text-xs mt-2 bg-gray-100 p-2 rounded overflow-auto max-h-32">
+                <div>Datos recibidos:</div>
+                <pre className="text-xs">{JSON.stringify(values, null, 2)}</pre>
+              </div>
+            </div>
+          );
+        }
+
+        chartData = {
+          labels: labels,
+          datasets: datasets
+        };
         
         return (
           <div key={chartKey} style={{ position: 'relative', height: '100%' }}>
-            <Line key={chartKey} data={chartData} options={getUnifiedBaseOptions(grafico.chart_type)} redraw={true} />
+            <Line 
+              key={chartKey}
+              data={chartData} 
+              options={getUnifiedBaseOptions('multi-line')}
+              redraw={true}
+            />
           </div>
         );
-
+      
       default:
         return <div className="text-gray-500">Tipo de gráfico no soportado: {grafico.chart_type}</div>;
     }
   };
 
-  // Cargar categorías al iniciar
+  // Función para obtener gráficos filtrados por pestaña
+  const getFilteredCharts = () => {
+    const allCharts = [];
+    
+    dashboards.forEach((dashboard) => {
+      const graficos = Array.isArray(dashboard.graficos) ? dashboard.graficos : [dashboard.graficos];
+      graficos.forEach((grafico) => {
+        if (grafico) {
+          allCharts.push({ dashboard, grafico });
+        }
+      });
+    });
+
+    if (activeTab === 'all') {
+      return allCharts;
+    }
+    
+    return allCharts.filter(({ grafico }) => grafico.chart_type === activeTab);
+  };
+
+  // Función para obtener tipos únicos incluyendo 'mixed'
+  const getUniqueChartTypes = () => {
+    const types = new Set();
+    dashboards.forEach((dashboard) => {
+      const graficos = Array.isArray(dashboard.graficos) ? dashboard.graficos : [dashboard.graficos];
+      graficos.forEach((grafico) => {
+        if (grafico && grafico.chart_type) {
+          types.add(grafico.chart_type);
+        }
+      });
+    });
+    return Array.from(types);
+  };
+
   useEffect(() => {
     fetchCategories();
   }, []);
 
-  // Loading y Error states (mantenemos los mismos)
   if (loading) {
     return (
       <div className="min-h-screen bg-[url('/camioncito.png')] bg-cover bg-fixed bg-bottom p-6">
         <div className="flex justify-center items-center h-screen">
           <div className="text-center">
             <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-            <div className="text-lg text-gray-600">Cargando...</div>
+            <div className="text-lg text-gray-600">Cargando dashboards...</div>
           </div>
         </div>
       </div>
@@ -725,10 +1157,108 @@ const DashboardPage = () => {
               <strong>Error:</strong> {error}
             </div>
             <button 
-              onClick={() => currentCategory ? fetchDashboardsByCategory(currentCategory.id) : fetchCategories()}
+              onClick={fetchCategories}
               className="mt-4 w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
             >
               Reintentar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (dashboards.length === 0 && currentCategory) {
+    return (
+      <div className="min-h-screen bg-[url('/camioncito.png')] bg-cover bg-fixed bg-bottom p-6">
+        {/* HEADER DE NAVEGACIÓN */}
+        <div className="flex justify-between items-center bg-white/90 dark:bg-[#1c2e1f]/90 px-6 py-3 rounded-xl shadow mb-6 max-w-7xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
+          <div className="flex items-center gap-2">
+            <FaTree className="text-2xl text-[#D2C900]" />
+            <span className="text-xl font-serif font-bold text-[#5E564D] dark:text-white">
+              Tronix Forest Assistant
+            </span>
+          </div>
+          <div className="flex gap-4 text-sm font-medium">
+            <a href="/chat" className="text-[#5E564D] dark:text-white hover:underline">
+              🌲 Chat Tronix
+            </a>
+            <a href="/dashboards" className="text-[#D2C900] dark:text-[#D2C900] hover:underline font-bold">
+              📊 Mis Dashboards
+            </a>
+            <a href="/panel-ejecutivo" className="text-[#5E564D] dark:text-white hover:underline">
+              📈 Panel Ejecutivo
+            </a>
+            <a
+              href="/"
+              onClick={() => supabase.auth.signOut()}
+              className="text-[#5E564D] dark:text-red-400 hover:underline"
+            >
+              🚪 Cerrar sesión
+            </a>
+          </div>
+        </div>
+
+        <div className="flex justify-center items-center h-screen">
+          <div className="text-center bg-white/90 dark:bg-[#1c2e1f]/90 rounded-lg shadow-lg p-8 max-w-md mx-auto backdrop-blur-sm">
+            <div className="text-6xl mb-4">📊</div>
+            <div className="text-gray-600 dark:text-white text-lg mb-2">
+              No hay gráficos en esta categoría
+            </div>
+            <div className="text-gray-400">
+              Crea gráficos con el agente de IA y guárdalos en esta categoría
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (categories.length === 0 && !currentCategory) {
+    return (
+      <div className="min-h-screen bg-[url('/camioncito.png')] bg-cover bg-fixed bg-bottom p-6">
+        {/* HEADER DE NAVEGACIÓN */}
+        <div className="flex justify-between items-center bg-white/90 dark:bg-[#1c2e1f]/90 px-6 py-3 rounded-xl shadow mb-6 max-w-7xl mx-auto border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
+          <div className="flex items-center gap-2">
+            <FaTree className="text-2xl text-[#D2C900]" />
+            <span className="text-xl font-serif font-bold text-[#5E564D] dark:text-white">
+              Tronix Forest Assistant
+            </span>
+          </div>
+          <div className="flex gap-4 text-sm font-medium">
+            <a href="/chat" className="text-[#5E564D] dark:text-white hover:underline">
+              🌲 Chat Tronix
+            </a>
+            <a href="/dashboards" className="text-[#D2C900] dark:text-[#D2C900] hover:underline font-bold">
+              📊 Mis Dashboards
+            </a>
+            <a href="/panel-ejecutivo" className="text-[#5E564D] dark:text-white hover:underline">
+              📈 Panel Ejecutivo
+            </a>
+            <a
+              href="/"
+              onClick={() => supabase.auth.signOut()}
+              className="text-[#5E564D] dark:text-red-400 hover:underline"
+            >
+              🚪 Cerrar sesión
+            </a>
+          </div>
+        </div>
+
+        <div className="flex justify-center items-center h-screen">
+          <div className="text-center bg-white/90 dark:bg-[#1c2e1f]/90 rounded-lg shadow-lg p-8 max-w-md mx-auto backdrop-blur-sm">
+            <div className="text-6xl mb-4">📁</div>
+            <div className="text-gray-600 dark:text-white text-lg mb-2">
+              No tienes categorías creadas
+            </div>
+            <div className="text-gray-400 mb-4">
+              Crea tu primera categoría para organizar tus gráficos
+            </div>
+            <button 
+              onClick={() => setShowCreateCategory(true)}
+              className="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-300"
+            >
+              <FaPlus className="inline mr-2" /> Crear Categoría
             </button>
           </div>
         </div>
@@ -776,7 +1306,7 @@ const DashboardPage = () => {
             <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
               <div>
                 <h1 className="text-4xl font-bold text-gray-800 dark:text-white mb-2">📁 Mis Dashboards</h1>
-                <p className="text-gray-600 dark:text-gray-300">Organiza tus gráficos por categorías temáticas</p>
+                <p className="text-gray-600 dark:text-gray-300">Organiza tus gráficos por categorías temáticas con layout flexible</p>
               </div>
               <div className="flex gap-3">
                 <button 
@@ -796,74 +1326,54 @@ const DashboardPage = () => {
 
             {/* Grid de Categorías */}
             <div className="p-6">
-              {categories.length === 0 ? (
-                <div className="text-center py-16">
-                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 max-w-md mx-auto border">
-                    <div className="text-6xl mb-4">📁</div>
-                    <div className="text-gray-600 dark:text-gray-300 text-lg mb-2">
-                      No tienes categorías creadas
-                    </div>
-                    <div className="text-gray-400 mb-4">
-                      Crea tu primera categoría para organizar tus gráficos
-                    </div>
-                    <button 
-                      onClick={() => setShowCreateCategory(true)}
-                      className="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-300"
-                    >
-                      <FaPlus className="inline mr-2" /> Crear Categoría
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {categories.map((category) => (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {categories.map((category) => (
+                  <div 
+                    key={category.id}
+                    onClick={() => {
+                      setCurrentCategory(category);
+                      fetchDashboardsByCategory(category.id);
+                    }}
+                    className="bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-3 hover:scale-105 overflow-hidden border border-gray-100 dark:border-gray-700 cursor-pointer group"
+                  >
                     <div 
-                      key={category.id}
-                      onClick={() => {
-                        setCurrentCategory(category);
-                        fetchDashboardsByCategory(category.id);
-                      }}
-                      className="bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-3 hover:scale-105 overflow-hidden border border-gray-100 dark:border-gray-700 cursor-pointer group"
+                      className="h-24 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center border-b border-gray-200 dark:border-gray-600"
+                      style={{ backgroundColor: category.color + '20' }}
                     >
-                      <div 
-                        className="h-24 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center border-b border-gray-200 dark:border-gray-600"
-                        style={{ backgroundColor: category.color + '20' }}
-                      >
-                        <div className="text-4xl group-hover:scale-110 transition-transform duration-300">
-                          {category.icon || '📁'}
+                      <div className="text-4xl group-hover:scale-110 transition-transform duration-300">
+                        {category.icon || '📁'}
+                      </div>
+                    </div>
+                    
+                    <div className="p-6">
+                      <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
+                        {category.name}
+                      </h3>
+                      
+                      <p className="text-gray-600 dark:text-gray-300 text-sm mb-4 min-h-[40px]">
+                        {category.description || 'Sin descripción'}
+                      </p>
+                      
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                          <FaChartBar />
+                          <span>{category.chart_count} gráfico{category.chart_count !== 1 ? 's' : ''}</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-sm text-gray-400">
+                          <span>📅 {new Date(category.created_at).toLocaleDateString()}</span>
                         </div>
                       </div>
                       
-                      <div className="p-6">
-                        <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
-                          {category.name}
-                        </h3>
-                        
-                        <p className="text-gray-600 dark:text-gray-300 text-sm mb-4 min-h-[40px]">
-                          {category.description || 'Sin descripción'}
-                        </p>
-                        
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                            <FaChartBar />
-                            <span>{category.chart_count} gráfico{category.chart_count !== 1 ? 's' : ''}</span>
-                          </div>
-                          
-                          <div className="flex items-center gap-2 text-sm text-gray-400">
-                            <span>📅 {new Date(category.created_at).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                        
-                        <div className="mt-4 flex justify-end">
-                          <div className="px-3 py-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs rounded-full group-hover:from-blue-600 group-hover:to-blue-700 transition-all duration-300">
-                            Ver Dashboard
-                          </div>
+                      <div className="mt-4 flex justify-end">
+                        <div className="px-3 py-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs rounded-full group-hover:from-blue-600 group-hover:to-blue-700 transition-all duration-300">
+                          Ver Dashboard
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                ))}
+              </div>
             </div>
           </>
         )}
@@ -902,13 +1412,13 @@ const DashboardPage = () => {
                   </h1>
                   
                   <p className="text-gray-600 dark:text-gray-300 mt-1">
-                    {currentCategory.description || 'Dashboard de gráficos con layout flexible'}
+                    {currentCategory.description || 'Dashboard con layout flexible y gráficos mixtos preservados'}
                   </p>
                 </div>
               </div>
               
               <div className="flex gap-3">
-                {/* 🆕 Botón de modo edición */}
+                {/* Botón de modo edición */}
                 <button 
                   onClick={() => setEditMode(!editMode)}
                   className={`px-6 py-3 rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center gap-2 ${
@@ -930,7 +1440,7 @@ const DashboardPage = () => {
               </div>
             </div>
 
-            {/* 🆕 Información del modo edición */}
+            {/* Información del modo edición */}
             {editMode && (
               <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800 border-b border-blue-200 dark:border-blue-700">
                 <div className="flex items-center gap-2 text-blue-800 dark:text-blue-200">
@@ -943,97 +1453,94 @@ const DashboardPage = () => {
               </div>
             )}
 
-            {/* 🆕 Grid flexible de gráficos */}
+            {/* Grid flexible de gráficos */}
             <div className="p-6">
-              {dashboards.length === 0 ? (
-                <div className="text-center py-16">
-                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 max-w-md mx-auto border">
-                    <div className="text-6xl mb-4">📊</div>
-                    <div className="text-gray-600 dark:text-gray-300 text-lg mb-2">
-                      No hay gráficos en esta categoría
-                    </div>
-                    <div className="text-gray-400">
-                      Crea gráficos con el agente de IA y guárdalos en esta categoría
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-12 gap-6">
-                  {dashboards.map((dashboard) => {
-                    const grafico = dashboard.graficos && dashboard.graficos.length > 0 ? dashboard.graficos[0] : null;
-                    
-                    if (!grafico) return null;
-                    
-                    return (
-                      <div 
-                        key={dashboard.id} 
-                        className={`${getChartSizeClasses(grafico.id)} relative`}
-                      >
-                        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100 dark:border-gray-700 h-full">
-                          {/* 🆕 Selector de tamaño (solo en modo edición) */}
-                          <SizeSelector chartId={grafico.id} currentSize={chartSizes[grafico.id]} />
-                          
-                          {/* Header compacto de la tarjeta */}
-                          <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-600">
-                            <div className="flex justify-between items-center">
-                              <div className="flex-1 min-w-0">
-                                <h3 className="text-lg font-bold text-gray-800 dark:text-white truncate">
-                                  {grafico.title || dashboard.name || 'Sin título'}
-                                </h3>
-                                <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
-                                  <span className="flex items-center bg-white dark:bg-gray-700 px-2 py-1 rounded-full">
-                                    {grafico.chart_type === 'bar' && '📊'}
-                                    {grafico.chart_type === 'pie' && '🥧'}
-                                    {grafico.chart_type === 'line' && '📈'}
-                                    {grafico.chart_type === 'multi-line' && '📊'}
-                                    {grafico.chart_type === 'mixed' && '🎯'}
-                                    <span className="ml-1 capitalize">
-                                      {grafico.chart_type === 'mixed' ? 'Mixto' : grafico.chart_type}
-                                    </span>
+              <div className="grid grid-cols-12 gap-6">
+                {dashboards.map((dashboard) => {
+                  const grafico = dashboard.graficos && dashboard.graficos.length > 0 ? dashboard.graficos[0] : null;
+                  
+                  if (!grafico) return null;
+                  
+                  return (
+                    <div 
+                      key={dashboard.id} 
+                      className={`${getChartSizeClasses(grafico.id)} relative`}
+                    >
+                      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100 dark:border-gray-700 h-full">
+                        {/* Selector de tamaño (solo en modo edición) */}
+                        <SizeSelector chartId={grafico.id} currentSize={chartSizes[grafico.id]} />
+                        
+                        {/* Header compacto de la tarjeta */}
+                        <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-600">
+                          <div className="flex justify-between items-center">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-lg font-bold text-gray-800 dark:text-white truncate">
+                                {grafico.title || dashboard.name || 'Sin título'}
+                              </h3>
+                              <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
+                                <span className="flex items-center bg-white dark:bg-gray-700 px-2 py-1 rounded-full">
+                                  {grafico.chart_type === 'bar' && '📊'}
+                                  {grafico.chart_type === 'pie' && '🥧'}
+                                  {grafico.chart_type === 'line' && '📈'}
+                                  {grafico.chart_type === 'multi-line' && '📊'}
+                                  {grafico.chart_type === 'mixed' && '🎯'}
+                                  <span className="ml-1 capitalize">
+                                    {grafico.chart_type === 'mixed' ? 'Mixto' : grafico.chart_type}
                                   </span>
-                                </div>
+                                </span>
+                                {/* Información de ejes para gráficos mixtos */}
+                                {grafico.chart_type === 'mixed' && grafico.axes && (
+                                  <span className="text-purple-600 dark:text-purple-400 font-medium">
+                                    {safeJsonParse(grafico.axes, []).length} ejes
+                                  </span>
+                                )}
                               </div>
-                              
-                              {!editMode && (
-                                <div className="flex space-x-1 ml-2">
-                                  <button
-                                    onClick={() => refreshChart(grafico.id, grafico.sql)}
-                                    disabled={refreshingChart === grafico.id}
-                                    className="p-2 bg-gradient-to-r from-green-500 to-green-600 text-white text-xs rounded hover:from-green-600 hover:to-green-700 disabled:opacity-50 transition-all duration-300"
-                                    title="Actualizar datos"
-                                  >
-                                    {refreshingChart === grafico.id ? '⏳' : '🔄'}
-                                  </button>
-                                  <button
-                                    onClick={() => deleteDashboard(dashboard.id)}
-                                    className="p-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-xs rounded hover:from-red-600 hover:to-red-700 transition-all duration-300"
-                                    title="Eliminar gráfico"
-                                  >
-                                    🗑️
-                                  </button>
-                                </div>
-                              )}
                             </div>
+                            
+                            {!editMode && (
+                              <div className="flex space-x-1 ml-2">
+                                <button
+                                  onClick={() => refreshChart(
+                                    grafico.id, 
+                                    grafico.sql, 
+                                    grafico.chart_type,  // 🆕 Pasar tipo original
+                                    grafico.axes         // 🆕 Pasar ejes originales
+                                  )}
+                                  disabled={refreshingChart === grafico.id}
+                                  className="p-2 bg-gradient-to-r from-green-500 to-green-600 text-white text-xs rounded hover:from-green-600 hover:to-green-700 disabled:opacity-50 transition-all duration-300"
+                                  title="Actualizar datos"
+                                >
+                                  {refreshingChart === grafico.id ? '⏳' : '🔄'}
+                                </button>
+                                <button
+                                  onClick={() => deleteDashboard(dashboard.id)}
+                                  className="p-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-xs rounded hover:from-red-600 hover:to-red-700 transition-all duration-300"
+                                  title="Eliminar gráfico"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            )}
                           </div>
+                        </div>
 
-                          {/* 🆕 Contenido del gráfico con altura dinámica */}
-                          <div className="p-4">
-                            <div className={`${getChartHeight(grafico.id)} relative bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-700 rounded-lg`}>
-                              {renderChart(grafico)}
-                            </div>
+                        {/* Contenido del gráfico con altura dinámica */}
+                        <div className="p-4">
+                          <div className={`${getChartHeight(grafico.id)} relative bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-700 rounded-lg`}>
+                            {renderChart(grafico)}
                           </div>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </>
         )}
       </div>
 
-      {/* MODAL PARA CREAR CATEGORÍA (mantenemos el mismo) */}
+      {/* MODAL PARA CREAR CATEGORÍA */}
       {showCreateCategory && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full border border-gray-200 dark:border-gray-700">
