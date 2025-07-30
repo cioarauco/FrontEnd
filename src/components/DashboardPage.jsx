@@ -483,7 +483,10 @@ const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
     switch (originalChartType) {
       case 'mixed':
         // Para gráficos mixtos, preservar configuración original
-        processedData = processForMixedChart(data, originalAxes);
+        processedData = processChartDataPreservingMixed(data, originalChartType, originalAxes);
+        if (processedData && processedData.values && Array.isArray(processedData.values)) {
+          processedData.values = fixMixedChartTypes(processedData.values, data);
+         }
         break;
         
       case 'bar':
@@ -651,247 +654,76 @@ const processForPieChart = (data) => {
     values: data.map(row => Number(row[valueKey]) || 0)
   };
 };
-// 🔧 PROCESADOR CON DEBUG MEJORADO PARA GRÁFICOS MIXTOS
-const processForMixedChart = (data, originalAxes) => {
-  console.log('🎯 [processForMixedChart] === INICIO DEBUG ===');
-  console.log('🎯 [processForMixedChart] Data recibida:', data);
-  console.log('🎯 [processForMixedChart] Tipo de data:', typeof data, Array.isArray(data));
-  console.log('🎯 [processForMixedChart] Longitud de data:', data?.length);
-  console.log('🎯 [processForMixedChart] Ejes originales:', originalAxes);
+const fixMixedChartTypes = (processedValues, originalData) => {
+  console.log('🔧 [fixMixedChartTypes] Aplicando fix a valores procesados:', processedValues);
+  console.log('🔧 [fixMixedChartTypes] Datos originales:', originalData);
   
-  // Validación básica más detallada
-  if (!data) {
-    console.error('❌ [processForMixedChart] Data es null o undefined');
-    return { values: [], labels: [], axes: originalAxes, chart_type: 'mixed' };
-  }
-  
-  if (!Array.isArray(data)) {
-    console.error('❌ [processForMixedChart] Data no es un array:', typeof data);
-    return { values: [], labels: [], axes: originalAxes, chart_type: 'mixed' };
-  }
-  
-  if (data.length === 0) {
-    console.error('❌ [processForMixedChart] Data está vacío');
-    return { values: [], labels: [], axes: originalAxes, chart_type: 'mixed' };
+  if (!processedValues || !Array.isArray(processedValues)) {
+    return processedValues;
   }
 
-  const firstRow = data[0];
-  console.log('🔍 [processForMixedChart] Primer registro:', firstRow);
-  
-  if (!firstRow || typeof firstRow !== 'object') {
-    console.error('❌ [processForMixedChart] Primer registro inválido:', firstRow);
-    return { values: [], labels: [], axes: originalAxes, chart_type: 'mixed' };
-  }
-
+  // Buscar la columna de tipo en los datos originales
+  const firstRow = originalData[0];
   const keys = Object.keys(firstRow);
-  console.log('🔍 [processForMixedChart] Keys detectadas:', keys);
-
-  // DETECTAR COLUMNA TYPE CON MÁS DEBUG
-  console.log('🔍 [processForMixedChart] Buscando columna de tipo...');
-  keys.forEach(key => {
-    const lowerKey = key.toLowerCase();
-    console.log(`🔍 [processForMixedChart] Analizando key "${key}": includes('type')=${lowerKey.includes('type')}, includes('tipo')=${lowerKey.includes('tipo')}`);
-  });
-
   const typeKey = keys.find(key => 
     key.toLowerCase().includes('type') || 
     key.toLowerCase().includes('tipo')
   );
-  
-  console.log('🔍 [processForMixedChart] Columna de tipo encontrada:', typeKey);
-  
+
   if (!typeKey) {
-    console.error('❌ [processForMixedChart] No se encontró columna de tipo');
-    console.log('💡 [processForMixedChart] Keys disponibles:', keys);
-    console.log('💡 [processForMixedChart] ¿Tienes una columna que indique si es bar o line?');
-    return { values: [], labels: [], axes: originalAxes, chart_type: 'mixed' };
+    console.log('🔧 [fixMixedChartTypes] No se encontró columna de tipo, devolviendo sin cambios');
+    return processedValues;
   }
 
-  // Analizar valores de la columna type
-  console.log('🔍 [processForMixedChart] Valores en columna de tipo:');
-  const typeValues = [...new Set(data.map(row => row[typeKey]))];
-  console.log('🔍 [processForMixedChart] Valores únicos de tipo:', typeValues);
+  console.log('🔧 [fixMixedChartTypes] Columna de tipo encontrada:', typeKey);
 
-  // Detectar otras columnas con más debug
-  console.log('🔍 [processForMixedChart] Analizando tipos de columnas...');
-  
-  const numericColumns = [];
-  const dateColumns = [];
-  const textColumns = [];
-
-  keys.forEach(k => {
-    if (k === typeKey) {
-      console.log(`🔍 [processForMixedChart] "${k}" → TIPO (ignorada)`);
-      return;
-    }
-
-    const sampleValue = firstRow[k];
-    console.log(`🔍 [processForMixedChart] Analizando "${k}": valor="${sampleValue}", tipo=${typeof sampleValue}`);
-
-    // Detectar fechas
-    if (k.toLowerCase().includes('fecha') || 
-        k.toLowerCase().includes('date') ||
-        /^\d{4}-\d{2}-\d{2}/.test(String(sampleValue))) {
-      dateColumns.push(k);
-      console.log(`🔍 [processForMixedChart] "${k}" → FECHA`);
-      return;
-    }
-
-    // Detectar numéricas
-    if (typeof sampleValue === "number" || !isNaN(Number(sampleValue))) {
-      numericColumns.push(k);
-      console.log(`🔍 [processForMixedChart] "${k}" → NUMÉRICA`);
-      return;
-    }
-
-    // Resto son texto
-    textColumns.push(k);
-    console.log(`🔍 [processForMixedChart] "${k}" → TEXTO`);
-  });
-
-  console.log('📊 [processForMixedChart] Clasificación final:', {
-    typeKey,
-    numericColumns,
-    dateColumns,
-    textColumns
-  });
-
-  const valueKey = numericColumns[0];
-  const labelKey = dateColumns[0] || textColumns[0] || keys[0];
-  const nameKey = textColumns.find(k => k !== labelKey);
-
-  console.log('🎯 [processForMixedChart] Estructura final:', {
-    typeKey, valueKey, labelKey, nameKey
-  });
-
-  if (!valueKey) {
-    console.error('❌ [processForMixedChart] No se encontró columna de valor numérico');
-    return { values: [], labels: [], axes: originalAxes, chart_type: 'mixed' };
-  }
-
-  if (!labelKey) {
-    console.error('❌ [processForMixedChart] No se encontró columna de etiquetas');
-    return { values: [], labels: [], axes: originalAxes, chart_type: 'mixed' };
-  }
-
-  // Crear labels únicos
-  const labels = [...new Set(data.map(row => row[labelKey]))].sort();
-  console.log('📊 [processForMixedChart] Labels únicos:', labels);
-
-  // Crear series únicas
-  const uniqueSeries = [...new Set(data.map(row => row[nameKey] || 'serie'))];
-  console.log('📊 [processForMixedChart] Series únicas:', uniqueSeries);
-
-  // CONSTRUIR DATASETS
-  console.log('🔧 [processForMixedChart] Construyendo datasets...');
-  const values = uniqueSeries.map((serieName, index) => {
-    console.log(`🔧 [processForMixedChart] Procesando serie ${index + 1}: "${serieName}"`);
+  // Crear mapa de serie → tipo
+  const serieTypeMap = new Map();
+  originalData.forEach(row => {
+    const nameKey = keys.find(k => 
+      k !== typeKey && 
+      typeof row[k] === 'string' && 
+      !k.toLowerCase().includes('fecha') &&
+      !k.toLowerCase().includes('date')
+    );
     
-    const serieData = data.filter(row => (row[nameKey] || 'serie') === serieName);
-    console.log(`🔧 [processForMixedChart] Datos de la serie:`, serieData);
+    if (nameKey && row[nameKey]) {
+      const serieName = row[nameKey];
+      const serieType = row[typeKey];
+      if (!serieTypeMap.has(serieName)) {
+        serieTypeMap.set(serieName, serieType);
+        console.log(`🔧 [fixMixedChartTypes] Mapeando "${serieName}" → "${serieType}"`);
+      }
+    }
+  });
+
+  console.log('🔧 [fixMixedChartTypes] Mapa de tipos:', Array.from(serieTypeMap.entries()));
+
+  // Aplicar tipos correctos a las series procesadas
+  const fixedValues = processedValues.map(serie => {
+    const originalType = serieTypeMap.get(serie.name) || serieTypeMap.get(serie.label);
     
-    if (serieData.length === 0) {
-      console.warn(`⚠️ [processForMixedChart] No hay datos para serie: ${serieName}`);
-      return null;
+    if (originalType) {
+      console.log(`🔧 [fixMixedChartTypes] Aplicando tipo "${originalType}" a serie "${serie.name || serie.label}"`);
+      
+      return {
+        ...serie,
+        type: originalType, // 🎯 PRESERVAR TIPO ORIGINAL
+        yAxisID: originalType === 'bar' ? 'y1' : 'y' // 🎯 ASIGNAR EJE CORRECTO
+      };
     }
 
-    // OBTENER EL TIPO DE LA SERIE
-    const serieType = serieData[0][typeKey];
-    console.log(`🎯 [processForMixedChart] Serie "${serieName}" es de tipo: "${serieType}"`);
-
-    // Crear datos de la serie
-    const serieValues = labels.map(label => {
-      const row = serieData.find(r => r[labelKey] === label);
-      const value = row ? Number(row[valueKey]) || 0 : 0;
-      console.log(`📈 [processForMixedChart] Label "${label}" → Valor: ${value}`);
-      return value;
-    });
-
-    // ASIGNAR AXIS SEGÚN EL TIPO
-    let yAxisID = 'y'; // Default para líneas
-    if (serieType === 'bar') {
-      yAxisID = 'y1'; // Eje derecho para barras
-    }
-
-    const serieResult = {
-      name: serieName,
-      type: serieType,
-      data: serieValues,
-      yAxisID: yAxisID
+    console.log(`🔧 [fixMixedChartTypes] No se encontró tipo para serie "${serie.name || serie.label}", usando line por defecto`);
+    return {
+      ...serie,
+      type: 'line',
+      yAxisID: 'y'
     };
-
-    console.log(`✅ [processForMixedChart] Serie construida:`, serieResult);
-    return serieResult;
-  }).filter(serie => serie !== null);
-
-  console.log('✅ [processForMixedChart] Todas las series construidas:', values);
-
-  // EJES
-  let axes = originalAxes;
-  if (!axes) {
-    console.log('🔧 [processForMixedChart] Creando ejes por defecto');
-    axes = [
-      { id: 'y', position: 'left', title: 'Líneas', beginAtZero: true },
-      { id: 'y1', position: 'right', title: 'Barras', beginAtZero: true }
-    ];
-  }
-
-  const result = {
-    labels: labels,
-    values: values,
-    axes: axes,
-    chart_type: 'mixed'
-  };
-
-  console.log('🎉 [processForMixedChart] === RESULTADO FINAL ===');
-  console.log('🎉 [processForMixedChart] Resultado completo:', result);
-  console.log('🎉 [processForMixedChart] === FIN DEBUG ===');
-  
-  return result;
-};
-
-// 🔧 ACTUALIZAR EL CASE PARA GRÁFICOS MIXTOS EN refreshChart
-// Reemplaza este case en tu función refreshChart:
-
-/*
-case 'mixed':
-  // USAR EL NUEVO PROCESADOR ESPECÍFICO
-  processedData = processForMixedChart(data, originalAxes);
-  break;
-*/
-// Función híbrida que mantiene compatibilidad total
-const processChartData = (data) => {
-  console.log('🔍 [processChartData] Iniciando procesamiento con data:', data);
-  
-  // Validaciones básicas
-  if (!data || !Array.isArray(data) || data.length === 0) {
-    console.error('❌ [processChartData] Datos inválidos:', data);
-    return { values: [], labels: [] };
-  }
-
-  const firstRow = data[0];
-  if (!firstRow || typeof firstRow !== 'object') {
-    console.error('❌ [processChartData] Primer registro inválido:', firstRow);
-    return { values: [], labels: [] };
-  }
-
-  const keys = Object.keys(firstRow);
-  console.log('🔍 [processChartData] Keys:', keys);
-  console.log('🔍 [processChartData] Primer registro:', firstRow);
-
-  // Detectar tipos de columnas
-  const dateColumns = keys.filter(k => 
-    k.toLowerCase().includes('fecha') || 
-    k.toLowerCase().includes('date') ||
-    /^\d{4}-\d{2}-\d{2}/.test(String(firstRow[k]))
-  );
-  
-  const numericColumns = keys.filter(k => {
-    const value = firstRow[k];
-    return (typeof value === "number" || 
-           (!isNaN(Number(value)) && value !== null && value !== '')) &&
-           !dateColumns.includes(k);
   });
+
+  console.log('✅ [fixMixedChartTypes] Series con tipos corregidos:', fixedValues);
+  return fixedValues;
+};
   
   const textColumns = keys.filter(k => 
     !dateColumns.includes(k) && 
