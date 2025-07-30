@@ -456,29 +456,50 @@ const DashboardPage = () => {
     };
   };
 
-  // 🔧 FUNCIÓN CORREGIDA PARA ACTUALIZAR GRÁFICOS MIXTOS
-  const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
+// 🔧 FUNCIÓN CORREGIDA PARA ACTUALIZAR GRÁFICOS CON MEJOR DEBUG
+const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
+  try {
+    setRefreshingChart(chartId);
+    console.log(`🔄 Actualizando gráfico ${chartId} con SQL:`, sql);
+    console.log(`🎯 Tipo original: ${originalChartType}`);
+    
+    const { data, error } = await supabase.rpc('execute_sql', { query: sql });
+    
+    if (error) {
+      console.error('❌ Error en execute_sql:', error);
+      throw new Error('Error al ejecutar SQL: ' + error.message);
+    }
+
+    console.log('📊 Datos RAW obtenidos del SQL:', data);
+    console.log('📊 Tipo de datos:', typeof data, Array.isArray(data));
+    console.log('📊 Longitud de datos:', data?.length);
+
+    if (!data) {
+      console.error('❌ Data es null o undefined');
+      alert('El SQL no devolvió datos. Verifica tu consulta.');
+      return;
+    }
+
+    if (!Array.isArray(data)) {
+      console.error('❌ Data no es un array:', data);
+      alert('El SQL devolvió un formato de datos inválido.');
+      return;
+    }
+
+    if (data.length === 0) {
+      console.error('❌ Data está vacío');
+      alert('La consulta SQL no devolvió datos. Verifica tu consulta.');
+      return;
+    }
+
+    // Mostrar estructura del primer registro
+    console.log('🔍 Primer registro:', data[0]);
+    console.log('🔍 Keys del primer registro:', Object.keys(data[0] || {}));
+
+    // 🆕 PRESERVAR CONFIGURACIÓN ORIGINAL PARA GRÁFICOS MIXTOS
+    let processedData;
+    
     try {
-      setRefreshingChart(chartId);
-      console.log(`🔄 Actualizando gráfico ${chartId} con SQL:`, sql);
-      console.log(`🎯 Tipo original: ${originalChartType}`);
-      
-      const { data, error } = await supabase.rpc('execute_sql', { query: sql });
-      
-      if (error) {
-        throw new Error('Error al ejecutar SQL: ' + error.message);
-      }
-
-      console.log('📊 Datos obtenidos del SQL:', data);
-
-      if (!data || data.length === 0) {
-        alert('La consulta SQL no devolvió datos. Verifica tu consulta.');
-        return;
-      }
-
-      // 🆕 PRESERVAR CONFIGURACIÓN ORIGINAL PARA GRÁFICOS MIXTOS
-      let processedData;
-      
       if (originalChartType === 'mixed' && originalAxes) {
         console.log('🎯 Procesando gráfico mixto preservando configuración original');
         processedData = processChartDataPreservingMixed(data, originalChartType, originalAxes);
@@ -487,52 +508,80 @@ const DashboardPage = () => {
         processedData = processChartData(data);
       }
 
-      console.log('🎯 Datos procesados:', processedData);
+      console.log('🎯 Datos procesados exitosamente:', processedData);
+      console.log('🎯 Tipo de processedData:', typeof processedData);
+      console.log('🎯 Keys de processedData:', Object.keys(processedData || {}));
 
-      // Preparar datos para actualización
-      const updateData = {
-        values: processedData.values,
-        labels: processedData.labels,
-        updated_at: new Date().toISOString()
-      };
-
-      // 🆕 PRESERVAR EJES ORIGINALES PARA GRÁFICOS MIXTOS
-      if (originalChartType === 'mixed' && originalAxes) {
-        updateData.axes = originalAxes; // Mantener configuración original
-        console.log('🎯 Preservando ejes originales:', originalAxes);
-      } else if (processedData.axes) {
-        updateData.axes = processedData.axes;
-      }
-
-      const { error: updateError } = await supabase
-        .from('graficos')
-        .update(updateData)
-        .eq('id', chartId);
-
-      if (updateError) {
-        throw new Error('Error al actualizar gráfico: ' + updateError.message);
-      }
-
-      console.log('✅ Gráfico actualizado en BD');
-
-      setChartRenderKeys(prev => ({
-        ...prev,
-        [chartId]: Date.now()
-      }));
-
-      setTimeout(async () => {
-        await fetchDashboardsByCategory(currentCategory.id);
-        alert('¡Gráfico actualizado exitosamente!');
-      }, 500);
-      
-    } catch (err) {
-      console.error('❌ Error al actualizar gráfico:', err);
-      alert('Error al actualizar gráfico: ' + err.message);
-    } finally {
-      setRefreshingChart(null);
+    } catch (processError) {
+      console.error('❌ Error en procesamiento de datos:', processError);
+      throw new Error('Error al procesar datos: ' + processError.message);
     }
-  };
 
+    // Validar datos procesados
+    if (!processedData) {
+      console.error('❌ processedData es null o undefined');
+      throw new Error('Error: Los datos procesados son inválidos');
+    }
+
+    if (!processedData.values || !processedData.labels) {
+      console.error('❌ processedData no tiene values o labels:', processedData);
+      throw new Error('Error: Los datos procesados no tienen la estructura correcta');
+    }
+
+    // Preparar datos para actualización
+    const updateData = {
+      values: processedData.values,
+      labels: processedData.labels,
+      updated_at: new Date().toISOString()
+    };
+
+    console.log('💾 Datos para actualizar en BD:', updateData);
+
+    // 🆕 PRESERVAR EJES ORIGINALES PARA GRÁFICOS MIXTOS
+    if (originalChartType === 'mixed' && originalAxes) {
+      updateData.axes = originalAxes; // Mantener configuración original
+      console.log('🎯 Preservando ejes originales:', originalAxes);
+    } else if (processedData.axes) {
+      updateData.axes = processedData.axes;
+      console.log('🎯 Usando nuevos ejes:', processedData.axes);
+    }
+
+    // Validar que los datos no sean null antes de actualizar
+    if (updateData.values === null || updateData.labels === null) {
+      console.error('❌ Intentando guardar datos null:', updateData);
+      throw new Error('Error: Intentando guardar datos nulos en la base de datos');
+    }
+
+    const { error: updateError } = await supabase
+      .from('graficos')
+      .update(updateData)
+      .eq('id', chartId);
+
+    if (updateError) {
+      console.error('❌ Error al actualizar en BD:', updateError);
+      throw new Error('Error al actualizar gráfico: ' + updateError.message);
+    }
+
+    console.log('✅ Gráfico actualizado en BD');
+
+    setChartRenderKeys(prev => ({
+      ...prev,
+      [chartId]: Date.now()
+    }));
+
+    setTimeout(async () => {
+      await fetchDashboardsByCategory(currentCategory.id);
+      alert('¡Gráfico actualizado exitosamente!');
+    }, 500);
+    
+  } catch (err) {
+    console.error('❌ Error completo al actualizar gráfico:', err);
+    console.error('❌ Stack trace:', err.stack);
+    alert('Error al actualizar gráfico: ' + err.message);
+  } finally {
+    setRefreshingChart(null);
+  }
+};
   // Función para eliminar dashboard
   const deleteDashboard = async (dashboardId) => {
     if (!confirm('¿Estás seguro de que quieres eliminar este gráfico del dashboard?')) {
