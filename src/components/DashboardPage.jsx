@@ -456,23 +456,44 @@ const DashboardPage = () => {
     };
   };
 
-// 🔧 FUNCIÓN CORREGIDA PARA ACTUALIZAR GRÁFICOS CON MEJOR DEBUG
+// 🔧 FUNCIÓN CON DEBUG ESPECÍFICO PARA SQL
 const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
   try {
     setRefreshingChart(chartId);
     console.log(`🔄 Actualizando gráfico ${chartId} con SQL:`, sql);
     console.log(`🎯 Tipo original: ${originalChartType}`);
     
-    const { data, error } = await supabase.rpc('execute_sql', { query: sql });
+    // Ejecutar SQL con debug detallado
+    console.log('🚀 Ejecutando SQL en Supabase...');
+    const sqlResult = await supabase.rpc('execute_sql', { query: sql });
     
-    if (error) {
-      console.error('❌ Error en execute_sql:', error);
-      throw new Error('Error al ejecutar SQL: ' + error.message);
+    console.log('📦 Respuesta completa de Supabase:', sqlResult);
+    console.log('📦 sqlResult.data:', sqlResult.data);
+    console.log('📦 sqlResult.error:', sqlResult.error);
+    console.log('📦 Tipo de sqlResult:', typeof sqlResult);
+    console.log('📦 Tipo de sqlResult.data:', typeof sqlResult.data);
+    console.log('📦 Es array sqlResult.data:', Array.isArray(sqlResult.data));
+    
+    if (sqlResult.error) {
+      console.error('❌ Error en execute_sql:', sqlResult.error);
+      throw new Error('Error al ejecutar SQL: ' + sqlResult.error.message);
     }
 
-    console.log('📊 Datos RAW obtenidos del SQL:', data);
-    console.log('📊 Tipo de datos:', typeof data, Array.isArray(data));
-    console.log('📊 Longitud de datos:', data?.length);
+    const data = sqlResult.data;
+    
+    // Debug más detallado de los datos
+    console.log('🔍 ANÁLISIS DETALLADO DE DATOS:');
+    console.log('- data:', data);
+    console.log('- typeof data:', typeof data);
+    console.log('- Array.isArray(data):', Array.isArray(data));
+    console.log('- data === null:', data === null);
+    console.log('- data === undefined:', data === undefined);
+    console.log('- JSON.stringify(data):', JSON.stringify(data));
+    
+    if (data && typeof data === 'object') {
+      console.log('- Object.keys(data):', Object.keys(data));
+      console.log('- data.length:', data.length);
+    }
 
     if (!data) {
       console.error('❌ Data es null o undefined');
@@ -480,10 +501,39 @@ const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
       return;
     }
 
+    // Verificar si data es un array
     if (!Array.isArray(data)) {
       console.error('❌ Data no es un array:', data);
-      alert('El SQL devolvió un formato de datos inválido.');
-      return;
+      
+      // Intentar diferentes estrategias de recuperación
+      if (typeof data === 'object' && data !== null) {
+        console.log('🔧 Intentando estrategias de recuperación...');
+        
+        // Estrategia 1: ¿Es un objeto con una propiedad que contiene el array?
+        const objectKeys = Object.keys(data);
+        console.log('🔧 Keys del objeto:', objectKeys);
+        
+        for (const key of objectKeys) {
+          if (Array.isArray(data[key])) {
+            console.log(`🔧 Encontrado array en data.${key}:`, data[key]);
+            data = data[key];
+            break;
+          }
+        }
+        
+        // Estrategia 2: ¿Es un objeto que representa una fila?
+        if (!Array.isArray(data) && typeof data === 'object') {
+          console.log('🔧 Convirtiendo objeto único a array');
+          data = [data];
+        }
+      }
+      
+      // Si aún no es array, fallar
+      if (!Array.isArray(data)) {
+        console.error('❌ No se pudo convertir data a array:', data);
+        alert('El SQL devolvió un formato de datos inválido. Formato recibido: ' + typeof data);
+        return;
+      }
     }
 
     if (data.length === 0) {
@@ -495,8 +545,9 @@ const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
     // Mostrar estructura del primer registro
     console.log('🔍 Primer registro:', data[0]);
     console.log('🔍 Keys del primer registro:', Object.keys(data[0] || {}));
+    console.log('🔍 Todos los registros:', data);
 
-    // 🆕 PRESERVAR CONFIGURACIÓN ORIGINAL PARA GRÁFICOS MIXTOS
+    // Procesar datos
     let processedData;
     
     try {
@@ -509,22 +560,16 @@ const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
       }
 
       console.log('🎯 Datos procesados exitosamente:', processedData);
-      console.log('🎯 Tipo de processedData:', typeof processedData);
-      console.log('🎯 Keys de processedData:', Object.keys(processedData || {}));
 
     } catch (processError) {
       console.error('❌ Error en procesamiento de datos:', processError);
+      console.error('❌ Stack trace:', processError.stack);
       throw new Error('Error al procesar datos: ' + processError.message);
     }
 
     // Validar datos procesados
-    if (!processedData) {
-      console.error('❌ processedData es null o undefined');
-      throw new Error('Error: Los datos procesados son inválidos');
-    }
-
-    if (!processedData.values || !processedData.labels) {
-      console.error('❌ processedData no tiene values o labels:', processedData);
+    if (!processedData || !processedData.values || !processedData.labels) {
+      console.error('❌ processedData inválido:', processedData);
       throw new Error('Error: Los datos procesados no tienen la estructura correcta');
     }
 
@@ -537,21 +582,16 @@ const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
 
     console.log('💾 Datos para actualizar en BD:', updateData);
 
-    // 🆕 PRESERVAR EJES ORIGINALES PARA GRÁFICOS MIXTOS
+    // Preservar ejes si es necesario
     if (originalChartType === 'mixed' && originalAxes) {
-      updateData.axes = originalAxes; // Mantener configuración original
+      updateData.axes = originalAxes;
       console.log('🎯 Preservando ejes originales:', originalAxes);
     } else if (processedData.axes) {
       updateData.axes = processedData.axes;
       console.log('🎯 Usando nuevos ejes:', processedData.axes);
     }
 
-    // Validar que los datos no sean null antes de actualizar
-    if (updateData.values === null || updateData.labels === null) {
-      console.error('❌ Intentando guardar datos null:', updateData);
-      throw new Error('Error: Intentando guardar datos nulos en la base de datos');
-    }
-
+    // Actualizar en base de datos
     const { error: updateError } = await supabase
       .from('graficos')
       .update(updateData)
