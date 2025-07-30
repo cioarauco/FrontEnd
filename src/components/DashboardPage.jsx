@@ -483,7 +483,7 @@ const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
     switch (originalChartType) {
       case 'mixed':
         // Para gráficos mixtos, preservar configuración original
-        processedData = processChartDataPreservingMixed(data, originalChartType, originalAxes);
+        processedData = processForMixedChart(data, originalAxes);
         break;
         
       case 'bar':
@@ -651,6 +651,146 @@ const processForPieChart = (data) => {
     values: data.map(row => Number(row[valueKey]) || 0)
   };
 };
+// 🔧 PROCESADOR ESPECÍFICO PARA GRÁFICOS MIXTOS CORREGIDO
+const processForMixedChart = (data, originalAxes) => {
+  console.log('🎯 [processForMixedChart] Iniciando con datos:', data);
+  console.log('🎯 [processForMixedChart] Ejes originales:', originalAxes);
+  
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    console.error('❌ [processForMixedChart] Datos inválidos');
+    return { values: [], labels: [], axes: originalAxes, chart_type: 'mixed' };
+  }
+
+  const keys = Object.keys(data[0]);
+  console.log('🔍 [processForMixedChart] Keys detectadas:', keys);
+
+  // DETECTAR ESTRUCTURA DE GRÁFICO MIXTO
+  const typeKey = keys.find(key => 
+    key.toLowerCase().includes('type') || 
+    key.toLowerCase().includes('tipo')
+  );
+  
+  if (!typeKey) {
+    console.error('❌ [processForMixedChart] No se encontró columna de tipo');
+    return { values: [], labels: [], axes: originalAxes, chart_type: 'mixed' };
+  }
+
+  // Detectar otras columnas
+  const numericColumns = keys.filter(k => 
+    k !== typeKey && 
+    (typeof data[0][k] === "number" || !isNaN(Number(data[0][k])))
+  );
+  
+  const dateColumns = keys.filter(k => 
+    k.toLowerCase().includes('fecha') || 
+    k.toLowerCase().includes('date') ||
+    /^\d{4}-\d{2}-\d{2}/.test(String(data[0][k]))
+  );
+  
+  const textColumns = keys.filter(k => 
+    k !== typeKey && 
+    !numericColumns.includes(k) && 
+    !dateColumns.includes(k)
+  );
+
+  const valueKey = numericColumns[0];
+  const labelKey = dateColumns[0] || textColumns[0] || keys[0];
+  const nameKey = textColumns.find(k => k !== labelKey) || 'serie';
+
+  console.log('🔍 [processForMixedChart] Estructura detectada:', {
+    typeKey, valueKey, labelKey, nameKey
+  });
+
+  if (!typeKey || !valueKey || !labelKey) {
+    console.error('❌ [processForMixedChart] Estructura de datos insuficiente');
+    return { values: [], labels: [], axes: originalAxes, chart_type: 'mixed' };
+  }
+
+  // Crear labels únicos
+  const labels = [...new Set(data.map(row => row[labelKey]))].sort();
+  console.log('📊 [processForMixedChart] Labels:', labels);
+
+  // Crear series únicas
+  const uniqueSeries = [...new Set(data.map(row => row[nameKey] || 'serie'))];
+  console.log('📊 [processForMixedChart] Series únicas:', uniqueSeries);
+
+  // CONSTRUIR DATASETS PRESERVANDO TIPOS ORIGINALES
+  const values = uniqueSeries.map(serieName => {
+    const serieData = data.filter(row => (row[nameKey] || 'serie') === serieName);
+    
+    if (serieData.length === 0) {
+      console.warn(`⚠️ [processForMixedChart] No hay datos para serie: ${serieName}`);
+      return null;
+    }
+
+    // OBTENER EL TIPO DE LA SERIE (bar o line)
+    const serieType = serieData[0][typeKey];
+    console.log(`🎯 [processForMixedChart] Serie "${serieName}" es de tipo: ${serieType}`);
+
+    // Crear datos de la serie
+    const serieValues = labels.map(label => {
+      const row = serieData.find(r => r[labelKey] === label);
+      return row ? Number(row[valueKey]) || 0 : 0;
+    });
+
+    // ASIGNAR AXIS SEGÚN EL TIPO
+    let yAxisID = 'y'; // Default para líneas
+    if (serieType === 'bar') {
+      yAxisID = 'y1'; // Eje derecho para barras
+    }
+
+    console.log(`📈 [processForMixedChart] Serie "${serieName}": tipo=${serieType}, axis=${yAxisID}, datos=`, serieValues);
+
+    return {
+      name: serieName,
+      type: serieType, // 🎯 PRESERVAR TIPO ORIGINAL
+      data: serieValues,
+      yAxisID: yAxisID // 🎯 ASIGNAR EJE CORRECTO
+    };
+  }).filter(serie => serie !== null); // Remover series nulas
+
+  console.log('✅ [processForMixedChart] Series finales construidas:', values);
+
+  // PRESERVAR EJES ORIGINALES O CREAR NUEVOS
+  let axes = originalAxes;
+  if (!axes) {
+    console.log('🔧 [processForMixedChart] Creando ejes por defecto');
+    axes = [
+      { 
+        id: 'y', 
+        position: 'left', 
+        title: 'Líneas', 
+        beginAtZero: true 
+      },
+      { 
+        id: 'y1', 
+        position: 'right', 
+        title: 'Barras', 
+        beginAtZero: true 
+      }
+    ];
+  }
+
+  const result = {
+    labels: labels,
+    values: values,
+    axes: axes,
+    chart_type: 'mixed'
+  };
+
+  console.log('🎉 [processForMixedChart] Resultado final:', result);
+  return result;
+};
+
+// 🔧 ACTUALIZAR EL CASE PARA GRÁFICOS MIXTOS EN refreshChart
+// Reemplaza este case en tu función refreshChart:
+
+/*
+case 'mixed':
+  // USAR EL NUEVO PROCESADOR ESPECÍFICO
+  processedData = processForMixedChart(data, originalAxes);
+  break;
+*/
 // Función híbrida que mantiene compatibilidad total
 const processChartData = (data) => {
   console.log('🔍 [processChartData] Iniciando procesamiento con data:', data);
