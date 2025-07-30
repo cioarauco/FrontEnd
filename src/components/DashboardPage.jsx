@@ -479,7 +479,7 @@ const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
       throw new Error('Error al ejecutar SQL: ' + sqlResult.error.message);
     }
 
-    const data = sqlResult.data;
+    let data = sqlResult.data;  // ✅ Cambiar const por let
     
     // Debug más detallado de los datos
     console.log('🔍 ANÁLISIS DETALLADO DE DATOS:');
@@ -516,7 +516,7 @@ const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
         for (const key of objectKeys) {
           if (Array.isArray(data[key])) {
             console.log(`🔧 Encontrado array en data.${key}:`, data[key]);
-            data = data[key];
+            data = data[key];  // ✅ Ahora funciona porque data es let
             break;
           }
         }
@@ -524,7 +524,7 @@ const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
         // Estrategia 2: ¿Es un objeto que representa una fila?
         if (!Array.isArray(data) && typeof data === 'object') {
           console.log('🔧 Convirtiendo objeto único a array');
-          data = [data];
+          data = [data];  // ✅ Ahora funciona porque data es let
         }
       }
       
