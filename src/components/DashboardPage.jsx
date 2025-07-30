@@ -645,79 +645,46 @@ const refreshChart = async (chartId, sql, originalChartType, originalAxes) => {
     }
   };
 
-// Función processChartData con validaciones de seguridad mejoradas
+// Función híbrida que mantiene compatibilidad total
 const processChartData = (data) => {
   console.log('🔍 [processChartData] Iniciando procesamiento con data:', data);
-  console.log('🔍 [processChartData] Tipo de data:', typeof data);
-  console.log('🔍 [processChartData] Es array:', Array.isArray(data));
   
-  // Validación inicial más robusta
-  if (!data) {
-    console.error('❌ [processChartData] Data es null o undefined');
-    return { values: [], labels: [] };
-  }
-
-  if (!Array.isArray(data)) {
-    console.error('❌ [processChartData] Data no es un array:', data);
-    return { values: [], labels: [] };
-  }
-
-  if (data.length === 0) {
-    console.error('❌ [processChartData] Data está vacío');
+  // Validaciones básicas
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    console.error('❌ [processChartData] Datos inválidos:', data);
     return { values: [], labels: [] };
   }
 
   const firstRow = data[0];
-  console.log('🔍 [processChartData] Primer registro:', firstRow);
-  
-  // Validación del primer registro
   if (!firstRow || typeof firstRow !== 'object') {
-    console.error('❌ [processChartData] Primer registro es inválido:', firstRow);
+    console.error('❌ [processChartData] Primer registro inválido:', firstRow);
     return { values: [], labels: [] };
   }
 
-  let keys;
-  try {
-    keys = Object.keys(firstRow);
-    console.log('🔍 [processChartData] Keys obtenidas:', keys);
-  } catch (error) {
-    console.error('❌ [processChartData] Error al obtener keys:', error);
-    return { values: [], labels: [] };
-  }
+  const keys = Object.keys(firstRow);
+  console.log('🔍 [processChartData] Keys:', keys);
+  console.log('🔍 [processChartData] Primer registro:', firstRow);
 
-  if (!keys || keys.length === 0) {
-    console.error('❌ [processChartData] No hay keys válidas');
-    return { values: [], labels: [] };
-  }
+  // Detectar tipos de columnas
+  const dateColumns = keys.filter(k => 
+    k.toLowerCase().includes('fecha') || 
+    k.toLowerCase().includes('date') ||
+    /^\d{4}-\d{2}-\d{2}/.test(String(firstRow[k]))
+  );
   
-  console.log('🔍 [processChartData] Analizando estructura de datos...');
-  
-  // Detectar columnas por tipo con validaciones
-  const textColumns = [];
-  const numericColumns = [];
-  const dateColumns = [];
-  
-  keys.forEach(k => {
-    try {
-      const sampleValue = data[0][k];
-      console.log(`🔍 [processChartData] Analizando columna "${k}":`, sampleValue, typeof sampleValue);
-      
-      if (k.toLowerCase().includes('fecha') || k.toLowerCase().includes('date')) {
-        dateColumns.push(k);
-      } else if (typeof sampleValue === "string" && isNaN(Number(sampleValue))) {
-        textColumns.push(k);
-      } else if (typeof sampleValue === "number" || (!isNaN(Number(sampleValue)) && sampleValue !== null && sampleValue !== '')) {
-        numericColumns.push(k);
-      } else {
-        textColumns.push(k); // Default a texto si no se puede clasificar
-      }
-    } catch (error) {
-      console.error(`❌ [processChartData] Error al analizar columna "${k}":`, error);
-      textColumns.push(k); // Default a texto en caso de error
-    }
+  const numericColumns = keys.filter(k => {
+    const value = firstRow[k];
+    return (typeof value === "number" || 
+           (!isNaN(Number(value)) && value !== null && value !== '')) &&
+           !dateColumns.includes(k);
   });
   
-  console.log('📊 [processChartData] Análisis de columnas:', { textColumns, numericColumns, dateColumns });
+  const textColumns = keys.filter(k => 
+    !dateColumns.includes(k) && 
+    !numericColumns.includes(k)
+  );
+
+  console.log('📊 [processChartData] Análisis:', { dateColumns, numericColumns, textColumns });
 
   // 1. CASO ESPECIAL: Gráficos mixtos con columna "type" o "tipo"
   const hasTypeColumn = keys.some(key => 
@@ -726,163 +693,194 @@ const processChartData = (data) => {
   
   if (hasTypeColumn) {
     console.log('🎯 [processChartData] Detectado gráfico mixto');
-    
-    const typeKey = keys.find(key => 
-      key && (key.toLowerCase().includes('type') || key.toLowerCase().includes('tipo'))
-    );
-    const valueKey = numericColumns.find(k => k !== typeKey);
-    const labelKey = dateColumns.length > 0 ? dateColumns[0] : textColumns[0];
-    const nameKey = keys.find(k => k !== labelKey && k !== typeKey && k !== valueKey);
-
-    if (typeKey && valueKey && labelKey) {
-      try {
-        const labels = [...new Set(data.map(row => row && row[labelKey] ? row[labelKey] : 'Sin label'))].sort();
-        const series = [...new Set(data.map(row => row && row[nameKey || 'serie'] ? row[nameKey || 'serie'] : 'Sin serie'))];
-        
-        const values = series.map(serie => {
-          const serieData = data.filter(row => row && row[nameKey || 'serie'] === serie);
-          const serieType = serieData[0] && serieData[0][typeKey] ? serieData[0][typeKey] : 'line';
-          
-          return {
-            name: serie,
-            type: serieType,
-            data: labels.map(label => {
-              const row = serieData.find(r => r && r[labelKey] === label);
-              return row && row[valueKey] ? Number(row[valueKey]) : 0;
-            }),
-            yAxisID: serieType === 'bar' ? 'y1' : 'y'
-          };
-        });
-
-        const axes = [
-          { id: 'y', position: 'left', title: 'Líneas', beginAtZero: true },
-          { id: 'y1', position: 'right', title: 'Barras', beginAtZero: true }
-        ];
-
-        console.log('✅ [processChartData] Gráfico mixto procesado exitosamente');
-        return { labels, values, axes, chart_type: 'mixed' };
-      } catch (error) {
-        console.error('❌ [processChartData] Error procesando gráfico mixto:', error);
-        return { values: [], labels: [] };
-      }
-    }
+    return processChartDataForMixed(data, keys, dateColumns, numericColumns, textColumns);
   }
 
-  // 2. CASO: Datos simples de 2 columnas (etiqueta + valor)
+  // 2. CASO: Datos simples de 2 columnas (PRIORIDAD ALTA)
   if (keys.length === 2) {
     console.log('📊 [processChartData] Procesando gráfico simple de 2 columnas');
     
-    try {
-      const labelKey = textColumns[0] || dateColumns[0] || keys[0];
-      const valueKey = numericColumns[0] || keys[1];
-      
-      console.log('📊 [processChartData] Gráfico simple 2 columnas:', { labelKey, valueKey });
-      
-      const labels = data.map(row => row && row[labelKey] ? row[labelKey] : 'Sin label');
-      const values = data.map(row => row && row[valueKey] ? Number(row[valueKey]) || 0 : 0);
-      
-      console.log('✅ [processChartData] Gráfico simple procesado exitosamente');
-      return { labels, values };
-    } catch (error) {
-      console.error('❌ [processChartData] Error procesando gráfico simple:', error);
-      return { values: [], labels: [] };
-    }
-  }
-
-  // 3. CASO: Para tu SQL específico - múltiples columnas numéricas como series
-  if (numericColumns.length > 1) {
-    console.log('📊 [processChartData] Detectadas múltiples columnas numéricas - creando multi-línea');
+    const labelKey = textColumns[0] || dateColumns[0] || keys[0];
+    const valueKey = numericColumns[0] || keys[1];
     
-    try {
+    const labels = data.map(row => row[labelKey] || 'Sin label');
+    const values = data.map(row => Number(row[valueKey]) || 0);
+    
+    console.log('✅ [processChartData] Gráfico simple procesado');
+    return { labels, values };
+  }
+
+  // 3. CASO: Múltiples columnas numéricas - ANÁLISIS INTELIGENTE
+  if (numericColumns.length >= 2) {
+    console.log('🔍 [processChartData] Múltiples columnas numéricas:', numericColumns);
+    
+    // DETECCIÓN INTELIGENTE: ¿Es multi-línea temporal o barras simples?
+    const hasDateOrTimeColumn = dateColumns.length > 0;
+    const hasVolumePattern = numericColumns.some(k => 
+      k.toLowerCase().includes('volumen') && 
+      k.includes('_') // volumen_arauco, volumen_chillan
+    );
+    
+    // INDICADORES DE MULTI-LÍNEA:
+    const isLikelyMultiLine = (
+      hasDateOrTimeColumn ||  // Tiene fechas
+      hasVolumePattern ||     // Patrón volumen_zona
+      numericColumns.every(k => k.includes('_')) ||  // Todas las numéricas tienen underscore
+      numericColumns.length > 2  // Más de 2 series
+    );
+    
+    console.log('🎯 [processChartData] Análisis multi-línea:', {
+      hasDateOrTimeColumn,
+      hasVolumePattern, 
+      isLikelyMultiLine,
+      numericCount: numericColumns.length
+    });
+
+    if (isLikelyMultiLine) {
+      console.log('📈 [processChartData] Procesando como multi-línea');
+      
+      const labelKey = dateColumns[0] || textColumns[0] || keys[0];
+      
+      const labels = data.map((row, index) => {
+        const labelValue = row[labelKey];
+        
+        if (dateColumns.includes(labelKey) && labelValue) {
+          try {
+            const date = new Date(labelValue);
+            return date.toISOString().split('T')[0];
+          } catch (e) {
+            return String(labelValue);
+          }
+        }
+        
+        return labelValue ? String(labelValue) : `Item ${index + 1}`;
+      });
+
+      const values = numericColumns.map(columnKey => {
+        const serieData = data.map(row => Number(row[columnKey]) || 0);
+
+        // Crear nombre de serie más amigable
+        let serieName = columnKey;
+        if (columnKey.toLowerCase().includes('volumen')) {
+          serieName = columnKey.replace(/volumen_?/i, '').replace(/_/g, ' ');
+          serieName = serieName.charAt(0).toUpperCase() + serieName.slice(1);
+        }
+        
+        return {
+          label: serieName,
+          data: serieData
+        };
+      });
+
+      console.log('✅ [processChartData] Multi-línea procesado');
+      return { labels, values };
+      
+    } else {
+      console.log('📊 [processChartData] Procesando como barras simples (columna principal)');
+      
+      // LÓGICA ORIGINAL PARA BARRAS: Usar columna principal
       const labelKey = textColumns[0] || dateColumns[0] || keys[0];
       
-      console.log('📊 [processChartData] Multi-línea con:', { 
-        labelKey, 
-        numericColumns 
-      });
+      // Buscar columna numérica principal
+      const primaryValueKey = numericColumns.find(k => 
+        k.toLowerCase().includes('volumen') || 
+        k.toLowerCase().includes('total') || 
+        k.toLowerCase().includes('valor') ||
+        k.toLowerCase().includes('monto') ||
+        k.toLowerCase().includes('transferido')  // Para tu caso específico
+      ) || numericColumns[0];
       
-      // Para tu caso: fecha, volumen_arauco, volumen_chillan
-      const labels = data.map(row => row && row[labelKey] ? row[labelKey] : 'Sin fecha');
+      console.log('📊 [processChartData] Usando columna principal:', primaryValueKey);
       
-      const multiLineData = numericColumns.map(key => ({
-        label: key,
-        data: data.map(row => row && row[key] ? Number(row[key]) || 0 : 0)
-      }));
+      const labels = data.map(row => row[labelKey] || 'Sin label');
+      const values = data.map(row => Number(row[primaryValueKey]) || 0);
       
-      console.log('✅ [processChartData] Multi-línea procesado exitosamente');
-      console.log('📊 [processChartData] Labels:', labels);
-      console.log('📊 [processChartData] Series:', multiLineData);
-      
-      return {
-        labels: labels,
-        values: multiLineData
-      };
-    } catch (error) {
-      console.error('❌ [processChartData] Error procesando multi-línea:', error);
-      return { values: [], labels: [] };
+      console.log('✅ [processChartData] Barras simples procesado');
+      return { labels, values };
     }
   }
 
-  // 4. CASO: Datos de 3 columnas (fecha/categoría + serie + valor)
+  // 4. CASO: Datos de 3 columnas con estructura serie
   if (keys.length === 3 && numericColumns.length === 1) {
     console.log('📊 [processChartData] Procesando datos de 3 columnas');
     
-    try {
-      const valueKey = numericColumns[0];
-      const labelKey = dateColumns.length > 0 ? dateColumns[0] : textColumns[0];
-      const serieKey = keys.find(k => k !== valueKey && k !== labelKey);
-      
-      console.log('📊 [processChartData] Datos de 3 columnas:', { labelKey, serieKey, valueKey });
-      
-      const labels = [...new Set(data.map(row => row && row[labelKey] ? row[labelKey] : 'Sin label'))].sort();
-      const series = [...new Set(data.map(row => row && row[serieKey] ? row[serieKey] : 'Sin serie'))];
-      
-      // Si solo hay una serie, hacer gráfico simple
-      if (series.length === 1) {
-        const values = labels.map(label => {
-          const row = data.find(r => r && r[labelKey] === label);
-          return row && row[valueKey] ? Number(row[valueKey]) : 0;
-        });
-        
-        console.log('✅ [processChartData] Serie única procesada como gráfico simple');
-        return { labels, values };
-      }
-      
-      // Multi-serie
-      const values = series.map(serie => ({
-        label: serie,
-        data: labels.map(label => {
-          const row = data.find(r => r && r[labelKey] === label && r[serieKey] === serie);
-          return row && row[valueKey] ? Number(row[valueKey]) : 0;
+    const valueKey = numericColumns[0];
+    const labelKey = dateColumns[0] || textColumns[0];
+    const serieKey = keys.find(k => k !== valueKey && k !== labelKey);
+    
+    const labels = [...new Set(data.map(row => row[labelKey]))].sort();
+    const series = [...new Set(data.map(row => row[serieKey]))];
+    
+    if (series.length === 1) {
+      return {
+        labels: labels,
+        values: labels.map(label => {
+          const row = data.find(r => r[labelKey] === label);
+          return row ? Number(row[valueKey]) || 0 : 0;
         })
-      }));
-      
-      console.log('✅ [processChartData] Multi-serie procesado exitosamente');
-      return { labels, values };
-    } catch (error) {
-      console.error('❌ [processChartData] Error procesando datos de 3 columnas:', error);
-      return { values: [], labels: [] };
+      };
     }
+    
+    const values = series.map(serie => ({
+      label: serie,
+      data: labels.map(label => {
+        const row = data.find(r => r[labelKey] === label && r[serieKey] === serie);
+        return row ? Number(row[valueKey]) || 0 : 0;
+      })
+    }));
+    
+    console.log('✅ [processChartData] Multi-serie procesado');
+    return { labels, values };
   }
 
-  // 5. FALLBACK: Usar primera columna numérica
+  // 5. FALLBACK
   console.log('📊 [processChartData] Usando fallback');
+  const fallbackValueKey = numericColumns[0] || keys.find(k => !isNaN(Number(firstRow[k])));
+  const fallbackLabelKey = keys.find(k => k !== fallbackValueKey) || keys[0];
   
-  try {
-    const fallbackValueKey = numericColumns[0] || keys.find(k => k && data[0][k] && !isNaN(Number(data[0][k])));
-    const fallbackLabelKey = keys.find(k => k !== fallbackValueKey) || keys[0];
+  return {
+    labels: data.map((row, i) => row[fallbackLabelKey] || `Item ${i + 1}`),
+    values: data.map(row => Number(row[fallbackValueKey]) || 0)
+  };
+};
+
+// Función auxiliar para gráficos mixtos
+const processChartDataForMixed = (data, keys, dateColumns, numericColumns, textColumns) => {
+  const typeKey = keys.find(key => 
+    key.toLowerCase().includes('type') || key.toLowerCase().includes('tipo')
+  );
+  const valueKey = numericColumns.find(k => k !== typeKey);
+  const labelKey = dateColumns[0] || textColumns[0];
+  const nameKey = keys.find(k => k !== labelKey && k !== typeKey && k !== valueKey);
+
+  if (typeKey && valueKey && labelKey) {
+    const labels = [...new Set(data.map(row => row[labelKey]))].sort();
+    const series = [...new Set(data.map(row => row[nameKey || 'serie']))];
     
-    console.log('📊 [processChartData] Fallback simple:', { fallbackLabelKey, fallbackValueKey });
-    
-    const labels = data.map(row => row && row[fallbackLabelKey] ? row[fallbackLabelKey] : `Item ${data.indexOf(row) + 1}`);
-    const values = data.map(row => row && row[fallbackValueKey] ? Number(row[fallbackValueKey]) || 0 : 0);
-    
-    console.log('✅ [processChartData] Fallback procesado exitosamente');
-    return { labels, values };
-  } catch (error) {
-    console.error('❌ [processChartData] Error en fallback:', error);
-    return { values: [], labels: [] };
+    const values = series.map(serie => {
+      const serieData = data.filter(row => row[nameKey || 'serie'] === serie);
+      const serieType = serieData[0]?.[typeKey] || 'line';
+      
+      return {
+        name: serie,
+        type: serieType,
+        data: labels.map(label => {
+          const row = serieData.find(r => r[labelKey] === label);
+          return row ? Number(row[valueKey]) : 0;
+        }),
+        yAxisID: serieType === 'bar' ? 'y1' : 'y'
+      };
+    });
+
+    const axes = [
+      { id: 'y', position: 'left', title: 'Líneas', beginAtZero: true },
+      { id: 'y1', position: 'right', title: 'Barras', beginAtZero: true }
+    ];
+
+    return { labels, values, axes, chart_type: 'mixed' };
   }
+  
+  return { values: [], labels: [] };
 };
 
   const safeJsonParse = (jsonString, fallback = null) => {
