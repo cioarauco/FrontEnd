@@ -651,86 +651,160 @@ const processForPieChart = (data) => {
     values: data.map(row => Number(row[valueKey]) || 0)
   };
 };
-// 🔧 PROCESADOR ESPECÍFICO PARA GRÁFICOS MIXTOS CORREGIDO
+// 🔧 PROCESADOR CON DEBUG MEJORADO PARA GRÁFICOS MIXTOS
 const processForMixedChart = (data, originalAxes) => {
-  console.log('🎯 [processForMixedChart] Iniciando con datos:', data);
+  console.log('🎯 [processForMixedChart] === INICIO DEBUG ===');
+  console.log('🎯 [processForMixedChart] Data recibida:', data);
+  console.log('🎯 [processForMixedChart] Tipo de data:', typeof data, Array.isArray(data));
+  console.log('🎯 [processForMixedChart] Longitud de data:', data?.length);
   console.log('🎯 [processForMixedChart] Ejes originales:', originalAxes);
   
-  if (!data || !Array.isArray(data) || data.length === 0) {
-    console.error('❌ [processForMixedChart] Datos inválidos');
+  // Validación básica más detallada
+  if (!data) {
+    console.error('❌ [processForMixedChart] Data es null o undefined');
+    return { values: [], labels: [], axes: originalAxes, chart_type: 'mixed' };
+  }
+  
+  if (!Array.isArray(data)) {
+    console.error('❌ [processForMixedChart] Data no es un array:', typeof data);
+    return { values: [], labels: [], axes: originalAxes, chart_type: 'mixed' };
+  }
+  
+  if (data.length === 0) {
+    console.error('❌ [processForMixedChart] Data está vacío');
     return { values: [], labels: [], axes: originalAxes, chart_type: 'mixed' };
   }
 
-  const keys = Object.keys(data[0]);
+  const firstRow = data[0];
+  console.log('🔍 [processForMixedChart] Primer registro:', firstRow);
+  
+  if (!firstRow || typeof firstRow !== 'object') {
+    console.error('❌ [processForMixedChart] Primer registro inválido:', firstRow);
+    return { values: [], labels: [], axes: originalAxes, chart_type: 'mixed' };
+  }
+
+  const keys = Object.keys(firstRow);
   console.log('🔍 [processForMixedChart] Keys detectadas:', keys);
 
-  // DETECTAR ESTRUCTURA DE GRÁFICO MIXTO
+  // DETECTAR COLUMNA TYPE CON MÁS DEBUG
+  console.log('🔍 [processForMixedChart] Buscando columna de tipo...');
+  keys.forEach(key => {
+    const lowerKey = key.toLowerCase();
+    console.log(`🔍 [processForMixedChart] Analizando key "${key}": includes('type')=${lowerKey.includes('type')}, includes('tipo')=${lowerKey.includes('tipo')}`);
+  });
+
   const typeKey = keys.find(key => 
     key.toLowerCase().includes('type') || 
     key.toLowerCase().includes('tipo')
   );
   
+  console.log('🔍 [processForMixedChart] Columna de tipo encontrada:', typeKey);
+  
   if (!typeKey) {
     console.error('❌ [processForMixedChart] No se encontró columna de tipo');
+    console.log('💡 [processForMixedChart] Keys disponibles:', keys);
+    console.log('💡 [processForMixedChart] ¿Tienes una columna que indique si es bar o line?');
     return { values: [], labels: [], axes: originalAxes, chart_type: 'mixed' };
   }
 
-  // Detectar otras columnas
-  const numericColumns = keys.filter(k => 
-    k !== typeKey && 
-    (typeof data[0][k] === "number" || !isNaN(Number(data[0][k])))
-  );
+  // Analizar valores de la columna type
+  console.log('🔍 [processForMixedChart] Valores en columna de tipo:');
+  const typeValues = [...new Set(data.map(row => row[typeKey]))];
+  console.log('🔍 [processForMixedChart] Valores únicos de tipo:', typeValues);
+
+  // Detectar otras columnas con más debug
+  console.log('🔍 [processForMixedChart] Analizando tipos de columnas...');
   
-  const dateColumns = keys.filter(k => 
-    k.toLowerCase().includes('fecha') || 
-    k.toLowerCase().includes('date') ||
-    /^\d{4}-\d{2}-\d{2}/.test(String(data[0][k]))
-  );
-  
-  const textColumns = keys.filter(k => 
-    k !== typeKey && 
-    !numericColumns.includes(k) && 
-    !dateColumns.includes(k)
-  );
+  const numericColumns = [];
+  const dateColumns = [];
+  const textColumns = [];
+
+  keys.forEach(k => {
+    if (k === typeKey) {
+      console.log(`🔍 [processForMixedChart] "${k}" → TIPO (ignorada)`);
+      return;
+    }
+
+    const sampleValue = firstRow[k];
+    console.log(`🔍 [processForMixedChart] Analizando "${k}": valor="${sampleValue}", tipo=${typeof sampleValue}`);
+
+    // Detectar fechas
+    if (k.toLowerCase().includes('fecha') || 
+        k.toLowerCase().includes('date') ||
+        /^\d{4}-\d{2}-\d{2}/.test(String(sampleValue))) {
+      dateColumns.push(k);
+      console.log(`🔍 [processForMixedChart] "${k}" → FECHA`);
+      return;
+    }
+
+    // Detectar numéricas
+    if (typeof sampleValue === "number" || !isNaN(Number(sampleValue))) {
+      numericColumns.push(k);
+      console.log(`🔍 [processForMixedChart] "${k}" → NUMÉRICA`);
+      return;
+    }
+
+    // Resto son texto
+    textColumns.push(k);
+    console.log(`🔍 [processForMixedChart] "${k}" → TEXTO`);
+  });
+
+  console.log('📊 [processForMixedChart] Clasificación final:', {
+    typeKey,
+    numericColumns,
+    dateColumns,
+    textColumns
+  });
 
   const valueKey = numericColumns[0];
   const labelKey = dateColumns[0] || textColumns[0] || keys[0];
-  const nameKey = textColumns.find(k => k !== labelKey) || 'serie';
+  const nameKey = textColumns.find(k => k !== labelKey);
 
-  console.log('🔍 [processForMixedChart] Estructura detectada:', {
+  console.log('🎯 [processForMixedChart] Estructura final:', {
     typeKey, valueKey, labelKey, nameKey
   });
 
-  if (!typeKey || !valueKey || !labelKey) {
-    console.error('❌ [processForMixedChart] Estructura de datos insuficiente');
+  if (!valueKey) {
+    console.error('❌ [processForMixedChart] No se encontró columna de valor numérico');
+    return { values: [], labels: [], axes: originalAxes, chart_type: 'mixed' };
+  }
+
+  if (!labelKey) {
+    console.error('❌ [processForMixedChart] No se encontró columna de etiquetas');
     return { values: [], labels: [], axes: originalAxes, chart_type: 'mixed' };
   }
 
   // Crear labels únicos
   const labels = [...new Set(data.map(row => row[labelKey]))].sort();
-  console.log('📊 [processForMixedChart] Labels:', labels);
+  console.log('📊 [processForMixedChart] Labels únicos:', labels);
 
   // Crear series únicas
   const uniqueSeries = [...new Set(data.map(row => row[nameKey] || 'serie'))];
   console.log('📊 [processForMixedChart] Series únicas:', uniqueSeries);
 
-  // CONSTRUIR DATASETS PRESERVANDO TIPOS ORIGINALES
-  const values = uniqueSeries.map(serieName => {
+  // CONSTRUIR DATASETS
+  console.log('🔧 [processForMixedChart] Construyendo datasets...');
+  const values = uniqueSeries.map((serieName, index) => {
+    console.log(`🔧 [processForMixedChart] Procesando serie ${index + 1}: "${serieName}"`);
+    
     const serieData = data.filter(row => (row[nameKey] || 'serie') === serieName);
+    console.log(`🔧 [processForMixedChart] Datos de la serie:`, serieData);
     
     if (serieData.length === 0) {
       console.warn(`⚠️ [processForMixedChart] No hay datos para serie: ${serieName}`);
       return null;
     }
 
-    // OBTENER EL TIPO DE LA SERIE (bar o line)
+    // OBTENER EL TIPO DE LA SERIE
     const serieType = serieData[0][typeKey];
-    console.log(`🎯 [processForMixedChart] Serie "${serieName}" es de tipo: ${serieType}`);
+    console.log(`🎯 [processForMixedChart] Serie "${serieName}" es de tipo: "${serieType}"`);
 
     // Crear datos de la serie
     const serieValues = labels.map(label => {
       const row = serieData.find(r => r[labelKey] === label);
-      return row ? Number(row[valueKey]) || 0 : 0;
+      const value = row ? Number(row[valueKey]) || 0 : 0;
+      console.log(`📈 [processForMixedChart] Label "${label}" → Valor: ${value}`);
+      return value;
     });
 
     // ASIGNAR AXIS SEGÚN EL TIPO
@@ -739,35 +813,26 @@ const processForMixedChart = (data, originalAxes) => {
       yAxisID = 'y1'; // Eje derecho para barras
     }
 
-    console.log(`📈 [processForMixedChart] Serie "${serieName}": tipo=${serieType}, axis=${yAxisID}, datos=`, serieValues);
-
-    return {
+    const serieResult = {
       name: serieName,
-      type: serieType, // 🎯 PRESERVAR TIPO ORIGINAL
+      type: serieType,
       data: serieValues,
-      yAxisID: yAxisID // 🎯 ASIGNAR EJE CORRECTO
+      yAxisID: yAxisID
     };
-  }).filter(serie => serie !== null); // Remover series nulas
 
-  console.log('✅ [processForMixedChart] Series finales construidas:', values);
+    console.log(`✅ [processForMixedChart] Serie construida:`, serieResult);
+    return serieResult;
+  }).filter(serie => serie !== null);
 
-  // PRESERVAR EJES ORIGINALES O CREAR NUEVOS
+  console.log('✅ [processForMixedChart] Todas las series construidas:', values);
+
+  // EJES
   let axes = originalAxes;
   if (!axes) {
     console.log('🔧 [processForMixedChart] Creando ejes por defecto');
     axes = [
-      { 
-        id: 'y', 
-        position: 'left', 
-        title: 'Líneas', 
-        beginAtZero: true 
-      },
-      { 
-        id: 'y1', 
-        position: 'right', 
-        title: 'Barras', 
-        beginAtZero: true 
-      }
+      { id: 'y', position: 'left', title: 'Líneas', beginAtZero: true },
+      { id: 'y1', position: 'right', title: 'Barras', beginAtZero: true }
     ];
   }
 
@@ -778,7 +843,10 @@ const processForMixedChart = (data, originalAxes) => {
     chart_type: 'mixed'
   };
 
-  console.log('🎉 [processForMixedChart] Resultado final:', result);
+  console.log('🎉 [processForMixedChart] === RESULTADO FINAL ===');
+  console.log('🎉 [processForMixedChart] Resultado completo:', result);
+  console.log('🎉 [processForMixedChart] === FIN DEBUG ===');
+  
   return result;
 };
 
