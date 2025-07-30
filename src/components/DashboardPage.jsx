@@ -657,67 +657,131 @@ const processForPieChart = (data) => {
   };
 };
 const fixMixedChartTypes = (processedValues, originalData) => {
-  console.log('🔧 [fixMixedChartTypes] Aplicando fix a valores procesados:', processedValues);
+  console.log('🔧 [fixMixedChartTypes] === INICIO DEBUG ===');
+  console.log('🔧 [fixMixedChartTypes] Valores procesados recibidos:', processedValues);
+  console.log('🔧 [fixMixedChartTypes] Datos originales recibidos:', originalData);
   
   if (!processedValues || !Array.isArray(processedValues)) {
+    console.log('🔧 [fixMixedChartTypes] processedValues no es array válido');
+    return processedValues;
+  }
+
+  if (!originalData || !Array.isArray(originalData) || originalData.length === 0) {
+    console.log('🔧 [fixMixedChartTypes] originalData no es array válido');
     return processedValues;
   }
 
   // Buscar la columna de tipo en los datos originales
   const firstRow = originalData[0];
+  console.log('🔧 [fixMixedChartTypes] Primer registro de datos originales:', firstRow);
+  
   const keys = Object.keys(firstRow);
+  console.log('🔧 [fixMixedChartTypes] Keys disponibles:', keys);
+  
   const typeKey = keys.find(key => 
     key.toLowerCase().includes('type') || 
     key.toLowerCase().includes('tipo')
   );
+  
+  console.log('🔧 [fixMixedChartTypes] Columna de tipo encontrada:', typeKey);
 
   if (!typeKey) {
-    console.log('🔧 [fixMixedChartTypes] No se encontró columna de tipo, devolviendo sin cambios');
+    console.log('🔧 [fixMixedChartTypes] ❌ No se encontró columna de tipo');
+    console.log('🔧 [fixMixedChartTypes] Keys analizadas:', keys.map(k => `"${k}" → includes('type'): ${k.toLowerCase().includes('type')}, includes('tipo'): ${k.toLowerCase().includes('tipo')}`));
     return processedValues;
   }
 
-  // Crear mapa de serie → tipo
-  const serieTypeMap = new Map();
-  originalData.forEach(row => {
-    const nameKey = keys.find(k => 
-      k !== typeKey && 
-      typeof row[k] === 'string' && 
-      !k.toLowerCase().includes('fecha') &&
-      !k.toLowerCase().includes('date')
-    );
+  // Mostrar todos los valores únicos de la columna tipo
+  const tiposUnicos = [...new Set(originalData.map(row => row[typeKey]))];
+  console.log('🔧 [fixMixedChartTypes] Tipos únicos en la columna:', tiposUnicos);
+
+  // Buscar columna de nombre/serie
+  console.log('🔧 [fixMixedChartTypes] Buscando columna de nombre de serie...');
+  const nameKey = keys.find(k => {
+    const esTexto = typeof firstRow[k] === 'string';
+    const noEsTipo = k !== typeKey;
+    const noEsFecha = !k.toLowerCase().includes('fecha') && !k.toLowerCase().includes('date');
     
-    if (nameKey && row[nameKey]) {
-      const serieName = row[nameKey];
-      const serieType = row[typeKey];
+    console.log(`🔧 [fixMixedChartTypes] Analizando "${k}": esTexto=${esTexto}, noEsTipo=${noEsTipo}, noEsFecha=${noEsFecha}`);
+    
+    return esTexto && noEsTipo && noEsFecha;
+  });
+  
+  console.log('🔧 [fixMixedChartTypes] Columna de nombre encontrada:', nameKey);
+
+  if (!nameKey) {
+    console.log('🔧 [fixMixedChartTypes] ❌ No se encontró columna de nombre de serie');
+    return processedValues;
+  }
+
+  // Crear mapa de serie → tipo con debug detallado
+  console.log('🔧 [fixMixedChartTypes] Creando mapa serie → tipo...');
+  const serieTypeMap = new Map();
+  
+  originalData.forEach((row, index) => {
+    const serieName = row[nameKey];
+    const serieType = row[typeKey];
+    
+    console.log(`🔧 [fixMixedChartTypes] Fila ${index}: serie="${serieName}", tipo="${serieType}"`);
+    
+    if (serieName && serieType) {
       if (!serieTypeMap.has(serieName)) {
         serieTypeMap.set(serieName, serieType);
-        console.log(`🔧 [fixMixedChartTypes] Mapeando "${serieName}" → "${serieType}"`);
+        console.log(`🔧 [fixMixedChartTypes] ✅ Mapeando "${serieName}" → "${serieType}"`);
       }
+    } else {
+      console.log(`🔧 [fixMixedChartTypes] ⚠️ Fila con datos faltantes: serie="${serieName}", tipo="${serieType}"`);
     }
+  });
+
+  console.log('🔧 [fixMixedChartTypes] Mapa final serie → tipo:');
+  serieTypeMap.forEach((tipo, serie) => {
+    console.log(`🔧 [fixMixedChartTypes]   "${serie}" → "${tipo}"`);
   });
 
   // Aplicar tipos correctos a las series procesadas
-  const fixedValues = processedValues.map(serie => {
-    const originalType = serieTypeMap.get(serie.name) || serieTypeMap.get(serie.label);
+  console.log('🔧 [fixMixedChartTypes] Aplicando correcciones a series procesadas...');
+  const fixedValues = processedValues.map((serie, index) => {
+    console.log(`🔧 [fixMixedChartTypes] Procesando serie ${index}:`, {
+      name: serie.name,
+      label: serie.label,
+      currentType: serie.type,
+      currentYAxisID: serie.yAxisID
+    });
+    
+    const serieName = serie.name || serie.label;
+    const originalType = serieTypeMap.get(serieName);
+    
+    console.log(`🔧 [fixMixedChartTypes] Buscando tipo para "${serieName}": encontrado="${originalType}"`);
     
     if (originalType) {
-      console.log(`🔧 [fixMixedChartTypes] Aplicando tipo "${originalType}" a serie "${serie.name || serie.label}"`);
+      const newYAxisID = originalType === 'bar' ? 'y1' : 'y';
       
+      console.log(`🔧 [fixMixedChartTypes] ✅ Aplicando tipo "${originalType}" y eje "${newYAxisID}" a serie "${serieName}"`);
+      
+      const result = {
+        ...serie,
+        type: originalType,
+        yAxisID: newYAxisID
+      };
+      
+      console.log(`🔧 [fixMixedChartTypes] Serie corregida:`, result);
+      return result;
+    } else {
+      console.log(`🔧 [fixMixedChartTypes] ⚠️ No se encontró tipo para "${serieName}", usando line por defecto`);
       return {
         ...serie,
-        type: originalType, // 🎯 PRESERVAR TIPO ORIGINAL
-        yAxisID: originalType === 'bar' ? 'y1' : 'y' // 🎯 ASIGNAR EJE CORRECTO
+        type: 'line',
+        yAxisID: 'y'
       };
     }
-
-    return {
-      ...serie,
-      type: 'line',
-      yAxisID: 'y'
-    };
   });
 
-  console.log('✅ [fixMixedChartTypes] Series con tipos corregidos:', fixedValues);
+  console.log('🔧 [fixMixedChartTypes] === RESULTADO FINAL ===');
+  console.log('🔧 [fixMixedChartTypes] Series originales:', processedValues.map(s => ({ name: s.name || s.label, type: s.type })));
+  console.log('🔧 [fixMixedChartTypes] Series corregidas:', fixedValues.map(s => ({ name: s.name || s.label, type: s.type })));
+  console.log('🔧 [fixMixedChartTypes] === FIN DEBUG ===');
+  
   return fixedValues;
 };
 // Función híbrida que mantiene compatibilidad total
