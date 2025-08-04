@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../App';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement, PointElement, LineElement } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
-import { FaTree, FaArrowLeft, FaPlus, FaFolder, FaChartBar, FaExpand, FaCompress, FaExpandArrowsAlt } from 'react-icons/fa';
+import { FaTree, FaArrowLeft, FaPlus, FaFolder, FaChartBar, FaExpand, FaCompress, FaExpandArrowsAlt, FaEdit, FaSave, FaTimes, FaEye, FaCode } from 'react-icons/fa';
 
 // Registrar componentes de Chart.js
 ChartJS.register(
@@ -16,6 +16,394 @@ ChartJS.register(
   PointElement,
   LineElement
 );
+
+// 🎯 COMPONENTE EDITOR DE GRÁFICOS
+const ChartEditor = ({ grafico, dashboard, onSave, onClose, supabase, processChartDataPreservingMixed, processForBarChart, processForLineChart, processForMultiLineChart, processForPieChart, processChartData }) => {
+  // Estados del editor
+  const [editData, setEditData] = useState({
+    title: grafico.title || '',
+    chart_type: grafico.chart_type || 'bar',
+    sql: grafico.sql || '',
+    description: dashboard.description || ''
+  });
+
+  const [previewMode, setPreviewMode] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [sqlError, setSqlError] = useState('');
+  const [previewData, setPreviewData] = useState(null);
+
+  // Tipos de gráfico disponibles
+  const chartTypes = [
+    { value: 'bar', label: '📊 Barras', description: 'Ideal para comparar categorías' },
+    { value: 'line', label: '📈 Línea Simple', description: 'Para tendencias temporales' },
+    { value: 'multi-line', label: '📊 Multi-línea', description: 'Múltiples series temporales' },
+    { value: 'pie', label: '🥧 Circular', description: 'Para proporciones' },
+    { value: 'mixed', label: '🎯 Mixto', description: 'Líneas y barras combinadas' }
+  ];
+
+  // Función para previsualizar SQL
+  const previewSQL = async () => {
+    if (!editData.sql.trim()) {
+      setSqlError('Por favor ingresa una consulta SQL');
+      return;
+    }
+
+    try {
+      setPreviewMode(true);
+      setSqlError('');
+      
+      const { data, error } = await supabase.rpc('execute_sql', { 
+        query: editData.sql 
+      });
+      
+      if (error) {
+        throw new Error('Error en SQL: ' + error.message);
+      }
+
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        throw new Error('La consulta no devolvió datos válidos');
+      }
+
+      setPreviewData(data);
+      console.log('✅ Preview SQL exitoso:', data);
+      
+    } catch (err) {
+      console.error('❌ Error en preview:', err);
+      setSqlError(err.message);
+      setPreviewData(null);
+    }
+  };
+
+  // Función para guardar cambios
+  const handleSave = async () => {
+    try {
+      setIsSaving(true);
+      setSqlError('');
+
+      // Validaciones básicas
+      if (!editData.title.trim()) {
+        throw new Error('El título es obligatorio');
+      }
+
+      if (!editData.sql.trim()) {
+        throw new Error('La consulta SQL es obligatoria');
+      }
+
+      // Ejecutar SQL para obtener nuevos datos
+      const { data: sqlData, error: sqlError } = await supabase.rpc('execute_sql', { 
+        query: editData.sql 
+      });
+      
+      if (sqlError) {
+        throw new Error('Error en SQL: ' + sqlError.message);
+      }
+
+      if (!sqlData || !Array.isArray(sqlData) || sqlData.length === 0) {
+        throw new Error('La consulta SQL no devolvió datos válidos');
+      }
+
+      // Procesar datos según el tipo de gráfico seleccionado
+      let processedData;
+      
+      switch (editData.chart_type) {
+        case 'mixed':
+          processedData = processChartDataPreservingMixed(sqlData, editData.chart_type, grafico.axes);
+          break;
+        case 'bar':
+          processedData = processForBarChart(sqlData);
+          break;
+        case 'line':
+          processedData = processForLineChart(sqlData);
+          break;
+        case 'multi-line':
+          processedData = processForMultiLineChart(sqlData);
+          break;
+        case 'pie':
+          processedData = processForPieChart(sqlData);
+          break;
+        default:
+          processedData = processChartData(sqlData);
+      }
+
+      // Preparar datos para actualizar
+      const updateData = {
+        title: editData.title.trim(),
+        chart_type: editData.chart_type,
+        sql: editData.sql.trim(),
+        values: processedData.values,
+        labels: processedData.labels,
+        updated_at: new Date().toISOString()
+      };
+
+      // Si es gráfico mixto, preservar ejes
+      if (editData.chart_type === 'mixed' && processedData.axes) {
+        updateData.axes = processedData.axes;
+      }
+
+      // Actualizar gráfico en base de datos
+      const { error: updateError } = await supabase
+        .from('graficos')
+        .update(updateData)
+        .eq('id', grafico.id);
+
+      if (updateError) {
+        throw new Error('Error al actualizar gráfico: ' + updateError.message);
+      }
+
+      // Actualizar dashboard si cambió la descripción
+      if (editData.description !== dashboard.description) {
+        const { error: dashboardError } = await supabase
+          .from('dashboards')
+          .update({ 
+            description: editData.description,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', dashboard.id);
+
+        if (dashboardError) {
+          console.warn('Error al actualizar descripción del dashboard:', dashboardError);
+        }
+      }
+
+      console.log('✅ Gráfico actualizado exitosamente');
+      onSave(); // Callback para refrescar la vista padre
+      
+    } catch (err) {
+      console.error('❌ Error al guardar:', err);
+      setSqlError(err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden border border-gray-200 dark:border-gray-700">
+        
+        {/* Header */}
+        <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800">
+          <div className="flex items-center gap-3">
+            <FaEdit className="text-blue-600 dark:text-blue-400 text-xl" />
+            <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
+              Editor de Gráfico
+            </h2>
+          </div>
+          <button 
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-xl p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+          >
+            <FaTimes />
+          </button>
+        </div>
+
+        {/* Contenido scrolleable */}
+        <div className="overflow-y-auto max-h-[calc(90vh-140px)]">
+          <div className="p-6 space-y-6">
+            
+            {/* Información básica */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Título del Gráfico *
+                </label>
+                <input
+                  type="text"
+                  value={editData.title}
+                  onChange={(e) => setEditData({...editData, title: e.target.value})}
+                  placeholder="Ej: Volumen por Zona 2024"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Tipo de Gráfico *
+                </label>
+                <select
+                  value={editData.chart_type}
+                  onChange={(e) => setEditData({...editData, chart_type: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                >
+                  {chartTypes.map(type => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {chartTypes.find(t => t.value === editData.chart_type)?.description}
+                </p>
+              </div>
+            </div>
+
+            {/* Descripción del dashboard */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Descripción del Dashboard (opcional)
+              </label>
+              <input
+                type="text"
+                value={editData.description}
+                onChange={(e) => setEditData({...editData, description: e.target.value})}
+                placeholder="Descripción general del dashboard..."
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+
+            {/* Editor SQL */}
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Consulta SQL *
+                </label>
+                <button
+                  onClick={previewSQL}
+                  disabled={!editData.sql.trim()}
+                  className="px-3 py-1 bg-gradient-to-r from-purple-500 to-purple-600 text-white text-sm rounded-lg hover:from-purple-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center gap-1"
+                >
+                  <FaEye className="text-xs" />
+                  Preview
+                </button>
+              </div>
+              
+              <div className="relative">
+                <textarea
+                  value={editData.sql}
+                  onChange={(e) => setEditData({...editData, sql: e.target.value})}
+                  placeholder="SELECT fecha, volumen FROM mi_tabla WHERE fecha >= '2024-01-01'"
+                  rows={8}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white font-mono text-sm resize-none"
+                />
+                <FaCode className="absolute top-3 right-3 text-gray-400" />
+              </div>
+              
+              {/* Error de SQL */}
+              {sqlError && (
+                <div className="mt-2 p-3 bg-red-50 dark:bg-red-900 border border-red-200 dark:border-red-700 rounded-lg">
+                  <p className="text-red-800 dark:text-red-200 text-sm font-medium">
+                    ❌ Error: {sqlError}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Preview de datos */}
+            {previewMode && previewData && (
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                  <FaEye className="text-green-600" />
+                  Preview de Datos ({previewData.length} registros)
+                </h3>
+                
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-xs">
+                    <thead>
+                      <tr className="bg-gray-100 dark:bg-gray-800">
+                        {Object.keys(previewData[0] || {}).map(key => (
+                          <th key={key} className="px-2 py-1 text-left text-gray-600 dark:text-gray-300 font-medium">
+                            {key}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewData.slice(0, 5).map((row, index) => (
+                        <tr key={index} className="border-t border-gray-200 dark:border-gray-700">
+                          {Object.values(row).map((value, cellIndex) => (
+                            <td key={cellIndex} className="px-2 py-1 text-gray-800 dark:text-gray-200">
+                              {String(value)}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                
+                {previewData.length > 5 && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    ... y {previewData.length - 5} registros más
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Consejos según tipo de gráfico */}
+            <div className="bg-blue-50 dark:bg-blue-900 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
+              <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                💡 Consejos para {chartTypes.find(t => t.value === editData.chart_type)?.label}:
+              </h3>
+              
+              {editData.chart_type === 'bar' && (
+                <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                  <li>• Usa 2 columnas: etiqueta (texto) y valor (número)</li>
+                  <li>• Ejemplo: SELECT zona, SUM(volumen) FROM datos GROUP BY zona</li>
+                </ul>
+              )}
+              
+              {editData.chart_type === 'line' && (
+                <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                  <li>• Usa 2 columnas: fecha/tiempo y valor</li>
+                  <li>• Ejemplo: SELECT fecha, volumen FROM datos ORDER BY fecha</li>
+                </ul>
+              )}
+              
+              {editData.chart_type === 'multi-line' && (
+                <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                  <li>• Opción 1: SELECT fecha, volumen_zona1, volumen_zona2 FROM datos</li>
+                  <li>• Opción 2: SELECT fecha, zona, volumen FROM datos</li>
+                </ul>
+              )}
+              
+              {editData.chart_type === 'mixed' && (
+                <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                  <li>• Incluye columna 'tipo' o 'type' con valores 'line' o 'bar'</li>
+                  <li>• Ejemplo: SELECT fecha, serie, tipo, volumen FROM datos</li>
+                  <li>• El tipo determina si se muestra como línea o barra</li>
+                </ul>
+              )}
+              
+              {editData.chart_type === 'pie' && (
+                <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                  <li>• Usa 2 columnas: categoría y valor</li>
+                  <li>• Ejemplo: SELECT especie, SUM(volumen) FROM datos GROUP BY especie</li>
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer con botones */}
+        <div className="flex gap-3 p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+          <button 
+            onClick={onClose}
+            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            Cancelar
+          </button>
+          
+          <button 
+            onClick={handleSave}
+            disabled={isSaving || !editData.title.trim() || !editData.sql.trim()}
+            className="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center justify-center gap-2"
+          >
+            {isSaving ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Guardando...
+              </>
+            ) : (
+              <>
+                <FaSave />
+                Guardar Cambios
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const DashboardPage = () => {
   // Estados principales
@@ -32,6 +420,11 @@ const DashboardPage = () => {
   const [chartSizes, setChartSizes] = useState({});
   const [editMode, setEditMode] = useState(false);
 
+  // 🆕 Estados para el editor
+  const [showEditor, setShowEditor] = useState(false);
+  const [editingChart, setEditingChart] = useState(null);
+  const [editingDashboard, setEditingDashboard] = useState(null);
+
   // Estados para crear categoría
   const [newCategory, setNewCategory] = useState({
     name: '',
@@ -39,6 +432,28 @@ const DashboardPage = () => {
     description: '',
     color: '#3B82F6'
   });
+
+  // 🆕 Funciones para el editor
+  const openEditor = (grafico, dashboard) => {
+    setEditingChart(grafico);
+    setEditingDashboard(dashboard);
+    setShowEditor(true);
+  };
+
+  const closeEditor = () => {
+    setShowEditor(false);
+    setEditingChart(null);
+    setEditingDashboard(null);
+  };
+
+  const handleEditorSave = async () => {
+    closeEditor();
+    // Refrescar los datos del dashboard actual
+    if (currentCategory) {
+      await fetchDashboardsByCategory(currentCategory.id);
+    }
+    alert('¡Gráfico actualizado exitosamente!');
+  };
 
   // Paleta de colores unificada
   const generateColors = (count) => {
@@ -656,6 +1071,7 @@ const processForPieChart = (data) => {
     values: data.map(row => Number(row[valueKey]) || 0)
   };
 };
+
 const fixMixedChartTypes = (processedValues, originalData, originalAxes) => {
   console.log('🔧 [fixMixedChartTypes] === INICIO DEBUG V2 ===');
   console.log('🔧 [fixMixedChartTypes] Valores procesados:', processedValues);
@@ -720,6 +1136,7 @@ const fixMixedChartTypes = (processedValues, originalData, originalAxes) => {
   
   return fixedValues;
 };
+
 // Función híbrida que mantiene compatibilidad total
 const processChartData = (data) => {
   console.log('🔍 [processChartData] Iniciando procesamiento con data:', data);
@@ -1423,6 +1840,34 @@ const processChartDataForMixed = (data, keys, dateColumns, numericColumns, textC
     return Array.from(types);
   };
 
+  // 🆕 Función para eliminar dashboard (añadida para completar funcionalidad)
+  const deleteDashboard = async (dashboardId) => {
+    if (!confirm('¿Estás seguro de que quieres eliminar este gráfico? Esta acción no se puede deshacer.')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('dashboards')
+        .delete()
+        .eq('id', dashboardId);
+
+      if (error) {
+        throw new Error('Error al eliminar dashboard: ' + error.message);
+      }
+
+      // Refrescar la vista
+      if (currentCategory) {
+        await fetchDashboardsByCategory(currentCategory.id);
+      }
+      
+      alert('Gráfico eliminado exitosamente');
+    } catch (err) {
+      console.error('Error al eliminar dashboard:', err);
+      alert('Error al eliminar gráfico: ' + err.message);
+    }
+  };
+
   useEffect(() => {
     fetchCategories();
   }, []);
@@ -1791,12 +2236,21 @@ const processChartDataForMixed = (data, keys, dateColumns, numericColumns, textC
                             
                             {!editMode && (
                               <div className="flex space-x-1 ml-2">
+                                {/* 🆕 NUEVO BOTÓN DE EDITAR */}
+                                <button
+                                  onClick={() => openEditor(grafico, dashboard)}
+                                  className="p-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs rounded hover:from-blue-600 hover:to-blue-700 transition-all duration-300"
+                                  title="Editar gráfico"
+                                >
+                                  ✏️
+                                </button>
+                                
                                 <button
                                   onClick={() => refreshChart(
                                     grafico.id, 
                                     grafico.sql, 
-                                    grafico.chart_type,  // 🆕 Pasar tipo original
-                                    grafico.axes         // 🆕 Pasar ejes originales
+                                    grafico.chart_type,
+                                    grafico.axes
                                   )}
                                   disabled={refreshingChart === grafico.id}
                                   className="p-2 bg-gradient-to-r from-green-500 to-green-600 text-white text-xs rounded hover:from-green-600 hover:to-green-700 disabled:opacity-50 transition-all duration-300"
@@ -1804,6 +2258,7 @@ const processChartDataForMixed = (data, keys, dateColumns, numericColumns, textC
                                 >
                                   {refreshingChart === grafico.id ? '⏳' : '🔄'}
                                 </button>
+                                
                                 <button
                                   onClick={() => deleteDashboard(dashboard.id)}
                                   className="p-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-xs rounded hover:from-red-600 hover:to-red-700 transition-all duration-300"
@@ -1934,6 +2389,23 @@ const processChartDataForMixed = (data, keys, dateColumns, numericColumns, textC
             </div>
           </div>
         </div>
+      )}
+
+      {/* 🆕 MODAL DEL EDITOR */}
+      {showEditor && editingChart && editingDashboard && (
+        <ChartEditor
+          grafico={editingChart}
+          dashboard={editingDashboard}
+          onSave={handleEditorSave}
+          onClose={closeEditor}
+          supabase={supabase}
+          processChartDataPreservingMixed={processChartDataPreservingMixed}
+          processForBarChart={processForBarChart}
+          processForLineChart={processForLineChart}
+          processForMultiLineChart={processForMultiLineChart}
+          processForPieChart={processForPieChart}
+          processChartData={processChartData}
+        />
       )}
     </div>
   );
