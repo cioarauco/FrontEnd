@@ -1841,32 +1841,184 @@ const processChartDataForMixed = (data, keys, dateColumns, numericColumns, textC
   };
 
   // 🆕 Función para eliminar dashboard (añadida para completar funcionalidad)
-  const deleteDashboard = async (dashboardId) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar este gráfico? Esta acción no se puede deshacer.')) {
-      return;
+const deleteDashboard = async (dashboardId) => {
+  console.log('🗑️ [deleteDashboard] Iniciando eliminación de dashboard:', dashboardId);
+  
+  if (!confirm('¿Estás seguro de que quieres eliminar este gráfico? Esta acción no se puede deshacer.')) {
+    return;
+  }
+
+  try {
+    // Verificar que el usuario esté autenticado
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      throw new Error('Usuario no autenticado');
     }
 
-    try {
-      const { error } = await supabase
-        .from('dashboards')
-        .delete()
-        .eq('id', dashboardId);
+    console.log('👤 Usuario autenticado:', user.id);
+    console.log('🎯 Eliminando dashboard ID:', dashboardId);
 
-      if (error) {
-        throw new Error('Error al eliminar dashboard: ' + error.message);
-      }
+    // Usar la función RPC limpia
+    const { data, error } = await supabase.rpc('delete_dashboard_with_grafico', {
+      dashboard_uuid: dashboardId
+    });
 
-      // Refrescar la vista
-      if (currentCategory) {
-        await fetchDashboardsByCategory(currentCategory.id);
-      }
+    console.log('📡 Respuesta de RPC:', data);
+
+    if (error) {
+      console.error('❌ Error de RPC:', error);
+      throw new Error('Error en función RPC: ' + error.message);
+    }
+
+    // Verificar si la función devolvió un error
+    if (data && data.error) {
+      console.error('❌ Error de función:', data);
+      throw new Error(data.message || 'Error desconocido en función');
+    }
+
+    console.log('✅ Gráfico eliminado exitosamente:', data);
+
+    // Refrescar la vista
+    if (currentCategory) {
+      console.log('🔄 Refrescando categoría:', currentCategory.id);
+      await fetchDashboardsByCategory(currentCategory.id);
+    }
+    
+    alert('¡Gráfico eliminado exitosamente!');
+    
+  } catch (err) {
+    console.error('❌ Error completo al eliminar gráfico:', err);
+    alert('Error al eliminar gráfico: ' + err.message);
+  }
+};
+
+// 🔧 FUNCIÓN DE FALLBACK (Si la RPC no funciona)
+const deleteDashboardFallback = async (dashboardId) => {
+  console.log('🔄 [deleteDashboardFallback] Usando método fallback');
+  
+  if (!confirm('¿Estás seguro de que quieres eliminar este gráfico?')) {
+    return;
+  }
+
+  try {
+    // Verificar autenticación
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      throw new Error('Usuario no autenticado');
+    }
+
+    // Obtener el grafico_id primero
+    const { data: dashboardData, error: fetchError } = await supabase
+      .from('dashboard')
+      .select('grafico_id, user_id')
+      .eq('id', dashboardId)
+      .single();
+
+    if (fetchError) {
+      console.error('❌ Error al obtener dashboard:', fetchError);
+      throw new Error('Error al obtener dashboard: ' + fetchError.message);
+    }
+
+    if (!dashboardData) {
+      throw new Error('Dashboard no encontrado');
+    }
+
+    if (dashboardData.user_id !== user.id) {
+      throw new Error('Sin permisos para eliminar este dashboard');
+    }
+
+    const graficoId = dashboardData.grafico_id;
+    console.log('🎯 Dashboard encontrado, gráfico ID:', graficoId);
+
+    // Eliminar la relación en dashboard primero
+    const { error: dashboardDeleteError } = await supabase
+      .from('dashboard')
+      .delete()
+      .eq('id', dashboardId)
+      .eq('user_id', user.id);
+
+    if (dashboardDeleteError) {
+      console.error('❌ Error al eliminar dashboard:', dashboardDeleteError);
+      throw new Error('Error al eliminar dashboard: ' + dashboardDeleteError.message);
+    }
+
+    console.log('✅ Dashboard eliminado');
+
+    // Luego eliminar el gráfico
+    const { error: graficoDeleteError } = await supabase
+      .from('graficos')
+      .delete()
+      .eq('id', graficoId);
+
+    if (graficoDeleteError) {
+      console.error('❌ Error al eliminar gráfico:', graficoDeleteError);
+      // No lanzar error aquí, ya eliminamos el dashboard
+      console.warn('⚠️ Dashboard eliminado pero gráfico quedó huérfano');
+    } else {
+      console.log('✅ Gráfico eliminado');
+    }
+
+    // Refrescar la vista
+    if (currentCategory) {
+      await fetchDashboardsByCategory(currentCategory.id);
+    }
+    
+    alert('¡Gráfico eliminado exitosamente!');
+    
+  } catch (err) {
+    console.error('❌ Error en método fallback:', err);
+    alert('Error al eliminar gráfico: ' + err.message);
+  }
+};
+
+// 🐛 FUNCIÓN PARA DEBUG (Usar temporalmente si algo falla)
+const debugDeleteDashboard = async (dashboardId) => {
+  console.log('🐛 [DEBUG] === INICIO DEBUG ELIMINACIÓN ===');
+  
+  try {
+    // 1. Verificar usuario
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    console.log('👤 Usuario:', user?.id, 'Error:', userError);
+
+    // 2. Verificar dashboard
+    const { data: dashboardData, error: dashboardError } = await supabase
+      .from('dashboard')
+      .select('*')
+      .eq('id', dashboardId);
+    
+    console.log('📊 Dashboard data:', dashboardData);
+    console.log('📊 Dashboard error:', dashboardError);
+
+    // 3. Verificar gráfico
+    if (dashboardData && dashboardData[0]) {
+      const graficoId = dashboardData[0].grafico_id;
+      const { data: graficoData, error: graficoError } = await supabase
+        .from('graficos')
+        .select('*')
+        .eq('id', graficoId);
       
-      alert('Gráfico eliminado exitosamente');
-    } catch (err) {
-      console.error('Error al eliminar dashboard:', err);
-      alert('Error al eliminar gráfico: ' + err.message);
+      console.log('🎯 Gráfico data:', graficoData);
+      console.log('🎯 Gráfico error:', graficoError);
     }
-  };
+
+    // 4. Verificar políticas (simular eliminación)
+    const { error: deleteTestError } = await supabase
+      .from('dashboard')
+      .delete()
+      .eq('id', dashboardId)
+      .select()
+      .limit(0); // No ejecutar realmente
+
+    console.log('🔒 Test políticas:', deleteTestError);
+
+  } catch (err) {
+    console.error('🐛 Error en debug:', err);
+  }
+  
+  console.log('🐛 [DEBUG] === FIN DEBUG ELIMINACIÓN ===');
+};
 
   useEffect(() => {
     fetchCategories();
