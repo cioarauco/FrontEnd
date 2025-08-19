@@ -148,7 +148,7 @@ export default function PanelEjecutivo() {
   if (loading) return <p className="text-center mt-10 text-gray-600">Cargando datos…</p>;
 
   return (
-    <div className="min-h-screen bg-[url('/bosqueconanimalitos.png')] bg-cover bg-fixed bg-center p-4">
+    <div className="min-h-screen bg-[url('/FondoClaro.jpg')] bg-cover bg-fixed bg-center p-4">
       <nav className="flex justify-between items-center bg-white/90 dark:bg-[#1c2e1f]/90 px-4 py-2 rounded shadow mb-4 max-w-6xl mx-auto text-sm font-medium border border-gray-200 dark:border-gray-700">
         <span className="font-semibold flex items-center gap-1 text-[#5E564D] dark:text-white">📊 Panel Ejecutivo Forestal</span>
         <div className="flex gap-4">
